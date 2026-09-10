@@ -1,11 +1,14 @@
 --[[
  Vyrnox Guard
  ------------
- if your executor does not support hooking it's own functions, this will not work
- place this file in your executor's autoexec/Autoexecution folder so it runs on every game,
+ if your executor does not support hooking it's own functions, this will not work.
+ place the loadstring:
+ loadstring(game:HttpGet("https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/refs/heads/main/Vyrnox%20Guard.lua"))()
+ in your executor's autoexec/Autoexecution folder so it runs on every game.
+ do NOT paste this entire file as you will miss updates.
  should load before any other script has a chance to execute.
- load order matters: Vyrnox Guard can only catch what happens after it's active
- that said, you still shouldn't execute untrusted + obfuscated scripts blindly
+ load order matters: Vyrnox Guard can only catch what happens after it's active.
+ that said, you still shouldn't execute untrusted + obfuscated scripts blindly.
 ]]
 
 local httprequest = (getgenv and getgenv().request) or (getgenv and getgenv().http_request) or request or http_request or syn.request or syn.http_request or nil
