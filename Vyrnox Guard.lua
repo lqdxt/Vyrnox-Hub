@@ -1,27 +1,113 @@
 --[[
  Vyrnox Guard
  ------------
- if your executor does not support hooking it's own functions, this will not work.
+ if your executor does not support hooking it's own functions, this will not work
  place the loadstring:
  loadstring(game:HttpGet("https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/refs/heads/main/Vyrnox%20Guard.lua"))()
- in your executor's autoexec/Autoexecution folder so it runs on every game.
- do NOT paste this entire file as you will miss updates.
- should load before any other script has a chance to execute.
- load order matters: Vyrnox Guard can only catch what happens after it's active.
- that said, you still shouldn't execute untrusted + obfuscated scripts blindly.
+ in your executor's autoexec/Autoexecution folder so it runs on every game
+ do NOT paste this entire file as you will miss updates
+ should load before any other script has a chance to execute
+ load order matters: Vyrnox Guard can only catch what happens after it's active
+ that said, you still shouldn't execute untrusted + obfuscated scripts blindly
 ]]
 
-local httprequest = (getgenv and getgenv().request) or (getgenv and getgenv().http_request) or request or http_request or syn.request or syn.http_request or nil
-local hook_func = hookfunction or detour_function or detourfunction or replace_function or replacefunction or replaceclosure or hookfunc or nil
-local get_nil = getnilinstances or nil
-local cclosure = newcclosure or (typeof(syn) == "table" and syn.newcclosure) or makecclosure or tocclosure or forcecclosure or function(f) return f end
-local env = getgenv and getgenv() or getfenv and getfenv() or _G or nil
-local spawn_func = (task and task.spawn) or spawn
-local wait_func = (task and task.wait) or wait
-local hash_func = (crypt and crypt.hash) or sha256 or (hash and hash.sha256) or nil
-local restore_func = restorefunction or restorefunc or restorehook or unhookfunction or nil
+local env = (type(getgenv) == "function" and getgenv()) or (type(getfenv) == "function" and getfenv()) or _G
+local cf = env.clonefunction or env.clone_function or env.clonefunc or clonefunction or clone_function
+local clone_func = function(fn) if type(fn) ~= "function" then return fn end if cf then local s, r = pcall(cf, fn) if s and type(r) == "function" then return r end end return fn end
+local request_func = clone_func(env.request or env.http_request or (type(env.syn) == "table" and (env.syn.request or env.syn.http_request)) or (type(env.http) == "table" and env.http.request) or (type(env.fluxus) == "table" and env.fluxus.request) or request or http_request)
+local is_func_hooked = clone_func(env.isfunctionhooked or env.ishookedfunction or env.is_hooked or env.is_function_hooked or env.is_hooked_function or (type(env.syn) == "table" and (env.syn.is_function_hooked or env.syn.is_hooked_function)) or isfunctionhooked or ishookedfunction) or nil
+local hook_func = clone_func(env.hookfunction or env.detour_function or env.replace_function or env.replaceclosure or hookfunction or hookfunc)
+local get_nil = clone_func(env.get_nil_instances or env.getnilinstances or (type(env.syn) == "table" and env.syn.getnilinstances) or getnilinstances)
+local cclosure = clone_func(env.newcclosure or env.makecclosure or (type(env.syn) == "table" and env.syn.newcclosure) or newcclosure) or function(f) return f end
+local spawn_func = clone_func((task and task.spawn) or env.spawn or spawn)
+local wait_func = clone_func((task and task.wait) or env.wait or wait)
+local hf = clone_func((type(env.crypt) == "table" and (env.crypt.sha256 or env.crypt.hash)) or env.sha256 or (type(env.hash) == "table" and env.hash.sha256) or sha256)
+local hash_func = clone_func(hf and function(data) if type(env.crypt) == "table" and hf == env.crypt.hash then return env.crypt.hash(data, "sha256") end return hf(data) end)
+local restore_func = clone_func(env.restorefunction or env.restorefunc or env.restorehook or env.unhookfunction or restorefunction)
 if env.VyrnoxGuardEnabled then error("script already exists?", 1) end
 env.VyrnoxGuardEnabled = true
+
+local OriginalFunctions = {}
+local HookedLiveFunctions = {}
+local ReportRestoreBlocked
+local RestoreFunctionBlocked = 0
+local AddConsoleLine
+local TriggerFileScan
+local IsFileScanRunning
+local ShowThreatNotification
+
+if is_func_hooked == nil then
+ local registry = setmetatable({}, { __mode = "k" })
+ if hook_func then
+  env.hookfunction = function(target, hook)
+   if type(target) == "function" then
+    registry[target] = true
+   end
+   if type(hook) == "function" then
+    registry[hook] = true
+   end
+   return hook_func(target, hook)
+  end
+ end
+ is_func_hooked = function(fn: (...any) -> ...any): boolean
+  if type(fn) ~= "function" then
+   return false
+  end
+
+  if registry[fn] then
+   return true
+  end
+
+  local get_info = (debug and debug.getinfo) or env.getinfo
+  local is_lclosure = env.islclosure or (env.iscclosure and function(f) return not env.iscclosure(f) end)
+
+  if get_info and is_lclosure then
+   local info = get_info(fn)
+   if info and is_lclosure(fn) and (info.what == "C" or info.source == "=[C]") then
+    return true
+   end
+  end
+
+  local get_upvalues = env.getupvalues or (debug and debug.getupvalues)
+  if get_upvalues then
+   local ups = get_upvalues(fn)
+   if type(ups) == "table" and (ups.__hooked or ups.__original) then
+    return true
+   end
+  end
+
+  return false
+ end
+end
+
+local function Console(msg_type, msg)
+ if AddConsoleLine then
+  AddConsoleLine(msg_type, msg)
+  return
+ end
+ pcall(function()
+  local f = (msg_type == "warn") and warn or print
+  f("[Vyrnox Guard] " .. tostring(msg))
+ end)
+end
+
+local checkfunctions = function()
+ local h = is_func_hooked
+ local check = function(func, msg)
+  if h(func) then
+   Console("warn", msg)
+  end
+  if restore_func then
+   pcall(function()
+    restore_func(func)
+   end)
+  end
+ end
+ check(restore_func, "restorefunction was already hooked")
+ check(request_func, "request was already hooked")
+ check(hook_func, "hookfunction was already hooked")
+end
+checkfunctions()
 
 local function PickChar(chartype: string): string
  if chartype == "Number" then
@@ -59,30 +145,6 @@ local function RandomString(chartype: string?, min: number?, num: number?): stri
  end
  return table.concat(parts)
 end
-
-local OriginalFunctions = {}
-local HookedLiveFunctions = {}
-local ReportRestoreBlocked
-local RestoreFunctionBlocked = 0
-local AddConsoleLine
-local TriggerFileScan
-local IsFileScanRunning
-local ShowThreatNotification
-
-local function Console(msg_type, msg)
- if AddConsoleLine then
-  AddConsoleLine(msg_type, msg)
-  return
- end
-end
-
-pcall(function()
- if restore_func then
-  restore_func(restore_func)
-  restore_func(httprequest)
-  restore_func(hook_func)
- end
-end)
 
 local function GuardedRestore(oldRestore, target)
  if HookedLiveFunctions[target] then
@@ -348,6 +410,30 @@ local function ContainsJwtToken(str)
  return str:find("eyJ[%w_%-]+%.[%w_%-]+%.[%w_%-]+") ~= nil
 end
 
+local ChangelogData = {
+ {
+  version = "1.1",
+  date = "2026-09-19",
+  changes = {
+   "Fixed some bugs",
+   "Fake IP: your real IP is swapped for a random IPv4/IPv6 address in outgoing request URLs, bodies, and headers.",
+   "Added a \"Block\" sub toggle under Protect Webhooks (on by default). Turning it off still detects and logs webhook exfiltration attempts. You can also pair it with Fake IP if its off",
+   "Better startup against tampering",
+   "Added optional Cloud Reputation URL checking against a hosted lookup service (off by default).",
+   "Can now catch IP logger responses by their JSON shape (lat/long, ISP, ASN...) and by suspicious IP forwarding headers, not just blocklisted content",
+   "Toggles can now have expandable sub options (long press or right click a toggle)",
+   "Added a Changelog tab",
+  },
+ },
+ {
+  version = "1.0",
+  date = "2026-08-29",
+  changes = {
+   "Initial public release of Vyrnox Guard.",
+  },
+ },
+}
+
 local BlockLog = {}
 local function LogBlock(reason, hookName, url)
  table.insert(BlockLog, { time = os.time(), reason = reason, hook = hookName, url = url })
@@ -411,6 +497,13 @@ function VyrnoxGuard.ToggleWebhooks(enabled)
  return BlockWebhooks
 end
 
+local BlockWebhooksHardBlock = true
+function VyrnoxGuard.ToggleWebhookBlock(enabled)
+ BlockWebhooksHardBlock = (enabled == true)
+ NotifyToggleChange()
+ return BlockWebhooksHardBlock
+end
+
 local ProtectCookies = true
 local ProtectIP = true
 local ProtectWebSocket = true
@@ -419,6 +512,39 @@ local ProtectFilesystem = true
 local ProtectConsoleGui = true
 local ProtectFingerprint = true
 local ProtectTokens = true
+local ProtectCloudReputation = false
+local CRE = ""
+local FakeIPEnabled = false
+local FakeIPAddress = nil
+
+local function RandomIPv4()
+ return string.format("%d.%d.%d.%d", math.random(1, 254), math.random(0, 255), math.random(0, 255), math.random(1, 254))
+end
+
+local function RandomIPv6()
+ local groups = {}
+ for i = 1, 8 do
+  groups[i] = string.format("%04x", math.random(0, 0xffff))
+ end
+ return table.concat(groups, ":")
+end
+
+local function GetFakeIP()
+ if not FakeIPAddress then
+  FakeIPAddress = (math.random() < 0.5) and RandomIPv4() or RandomIPv6()
+ end
+ return FakeIPAddress
+end
+
+function VyrnoxGuard.ToggleFakeIP(enabled)
+ FakeIPEnabled = (enabled == true)
+ if FakeIPEnabled then
+  FakeIPAddress = nil
+  GetFakeIP()
+ end
+ NotifyToggleChange()
+ return FakeIPEnabled
+end
 
 function VyrnoxGuard.ToggleCookies(enabled)
  ProtectCookies = (enabled == true)
@@ -459,6 +585,15 @@ function VyrnoxGuard.ToggleTokens(enabled)
  ProtectTokens = (enabled == true)
  NotifyToggleChange()
  return ProtectTokens
+end
+function VyrnoxGuard.ToggleCloudReputation(enabled)
+ ProtectCloudReputation = (enabled == true)
+ NotifyToggleChange()
+ return ProtectCloudReputation
+end
+function VyrnoxGuard.SetCloudReputationEndpoint(url, key)
+ CRE = typeof(url) == "string" and url or ""
+ NotifyToggleChange()
 end
 
 local function HasObfuscatedShapeName(name)
@@ -605,6 +740,10 @@ local function SaveConfig()
    ProtectFingerprint = ProtectFingerprint,
    ProtectTokens = ProtectTokens,
    BlockWebhooks = BlockWebhooks,
+   ProtectCloudReputation = ProtectCloudReputation,
+   FakeIPEnabled = FakeIPEnabled,
+   BlockWebhooksHardBlock = BlockWebhooksHardBlock,
+   CRE = CRE,
   }
   writefile(ConfigPath, game:GetService("HttpService"):JSONEncode(data))
  end)
@@ -630,6 +769,10 @@ local function LoadConfig()
  if typeof(result.ProtectFingerprint) == "boolean" then VyrnoxGuard.ToggleFingerprint(result.ProtectFingerprint) end
  if typeof(result.ProtectTokens) == "boolean" then VyrnoxGuard.ToggleTokens(result.ProtectTokens) end
  if typeof(result.BlockWebhooks) == "boolean" then VyrnoxGuard.ToggleWebhooks(result.BlockWebhooks) end
+ if typeof(result.CRE) == "string" then VyrnoxGuard.SetCloudReputationEndpoint(result.CRE) end
+ if typeof(result.ProtectCloudReputation) == "boolean" then VyrnoxGuard.ToggleCloudReputation(result.ProtectCloudReputation) end
+ if typeof(result.FakeIPEnabled) == "boolean" then VyrnoxGuard.ToggleFakeIP(result.FakeIPEnabled) end
+ if typeof(result.BlockWebhooksHardBlock) == "boolean" then VyrnoxGuard.ToggleWebhookBlock(result.BlockWebhooksHardBlock) end
 
  Console("print", "Loaded saved toggle configuration from " .. ConfigPath)
 end
@@ -1112,25 +1255,37 @@ spawn_func(function()
   tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
   tabLayout.Parent = tabBar
 
+  local TAB_COUNT = 3
+  local tabButtonWidth = math.floor((tabBar.Size.X.Offset - (TAB_COUNT - 1) * tabLayout.Padding.Offset) / TAB_COUNT)
+
   local function BuildTabButton(text, order)
    local btn = Instance.new("TextButton")
    btn.Name = text .. "Tab"
    btn.AutoButtonColor = false
-   btn.Size = UDim2.new(0, 105, 1, 0)
+   btn.Size = UDim2.new(0, tabButtonWidth, 1, 0)
    btn.LayoutOrder = order
    btn.BackgroundColor3 = PANEL_DARK
    btn.BackgroundTransparency = 0.2
    btn.Font = Enum.Font.GothamMedium
    btn.TextSize = 12
+   btn.TextScaled = true
    btn.TextColor3 = TEXT_DIM
    btn.Text = text
    btn.Parent = tabBar
+   local textConstraint = Instance.new("UITextSizeConstraint")
+   textConstraint.MaxTextSize = 12
+   textConstraint.Parent = btn
+   local btnPadding = Instance.new("UIPadding")
+   btnPadding.PaddingLeft = UDim.new(0, 4)
+   btnPadding.PaddingRight = UDim.new(0, 4)
+   btnPadding.Parent = btn
    NewCorner(8, btn)
    return btn
   end
 
   local togglesTabBtn = BuildTabButton("Home", 1)
   local statsTabBtn = BuildTabButton("Stats", 2)
+  local changelogTabBtn = BuildTabButton("Changelog", 3)
 
   local leftPanel = Instance.new("ScrollingFrame")
   leftPanel.Name = "LeftPanel"
@@ -1185,6 +1340,89 @@ spawn_func(function()
   statsPadding.PaddingBottom = UDim.new(0, 10)
   statsPadding.Parent = statsPanel
 
+  local changelogPanel = Instance.new("ScrollingFrame")
+  changelogPanel.Name = "ChangelogPanel"
+  changelogPanel.Position = UDim2.new(0, 12, 0, 42)
+  changelogPanel.Size = UDim2.new(0, 220, 1, -54)
+  changelogPanel.BackgroundColor3 = PANEL_DARK
+  changelogPanel.BackgroundTransparency = 0.2
+  changelogPanel.BorderSizePixel = 0
+  changelogPanel.ScrollBarThickness = 4
+  changelogPanel.ScrollBarImageColor3 = TEXT_DIM
+  changelogPanel.AutomaticCanvasSize = Enum.AutomaticSize.Y
+  changelogPanel.CanvasSize = UDim2.new(0, 0, 0, 0)
+  changelogPanel.Visible = false
+  changelogPanel.Parent = body
+  NewCorner(10, changelogPanel)
+
+  local changelogLayout = Instance.new("UIListLayout")
+  changelogLayout.Padding = UDim.new(0, 10)
+  changelogLayout.SortOrder = Enum.SortOrder.LayoutOrder
+  changelogLayout.Parent = changelogPanel
+
+  local changelogPadding = Instance.new("UIPadding")
+  changelogPadding.PaddingTop = UDim.new(0, 10)
+  changelogPadding.PaddingLeft = UDim.new(0, 10)
+  changelogPadding.PaddingRight = UDim.new(0, 10)
+  changelogPadding.PaddingBottom = UDim.new(0, 10)
+  changelogPadding.Parent = changelogPanel
+
+  local function BuildChangelogPanel()
+   local order = 0
+
+   for _, entry in ipairs(ChangelogData) do
+    order = order + 1
+    local header = Instance.new("TextLabel")
+    header.BackgroundTransparency = 1
+    header.Size = UDim2.new(1, 0, 0, 18)
+    header.Font = Enum.Font.GothamBold
+    header.TextSize = 13
+    header.TextXAlignment = Enum.TextXAlignment.Left
+    header.TextColor3 = TEXT_LIGHT
+    header.Text = "v" .. tostring(entry.version) .. (entry.date and ("  -  " .. entry.date) or "")
+    header.LayoutOrder = order
+    header.Parent = changelogPanel
+
+    for _, change in ipairs(entry.changes or {}) do
+     order = order + 1
+     local line = Instance.new("TextLabel")
+     line.BackgroundTransparency = 1
+     line.Size = UDim2.new(1, 0, 0, 0)
+     line.AutomaticSize = Enum.AutomaticSize.Y
+     line.TextWrapped = true
+     line.Font = Enum.Font.Gotham
+     line.TextSize = 12
+     line.TextXAlignment = Enum.TextXAlignment.Left
+     line.TextYAlignment = Enum.TextYAlignment.Top
+     line.TextColor3 = TEXT_DIM
+     line.Text = "•  " .. change
+     line.LayoutOrder = order
+     line.Parent = changelogPanel
+    end
+
+    order = order + 1
+    local spacer = Instance.new("Frame")
+    spacer.BackgroundTransparency = 1
+    spacer.Size = UDim2.new(1, 0, 0, 4)
+    spacer.LayoutOrder = order
+    spacer.Parent = changelogPanel
+   end
+
+   if #ChangelogData == 0 then
+    local empty = Instance.new("TextLabel")
+    empty.BackgroundTransparency = 1
+    empty.Size = UDim2.new(1, 0, 0, 18)
+    empty.Font = Enum.Font.Gotham
+    empty.TextSize = 12
+    empty.TextXAlignment = Enum.TextXAlignment.Left
+    empty.TextColor3 = TEXT_DIM
+    empty.Text = "No changelog entries yet."
+    empty.Parent = changelogPanel
+   end
+  end
+
+  BuildChangelogPanel()
+
   local function SetTabButtonActive(btn, active)
    btn.BackgroundColor3 = active and CALM or PANEL_DARK
    btn.BackgroundTransparency = active and 0.05 or 0.2
@@ -1195,10 +1433,14 @@ spawn_func(function()
 
   local function SwitchTab(tab)
    local showStats = (tab == "stats")
-   leftPanel.Visible = not showStats
+   local showChangelog = (tab == "changelog")
+   local showHome = not showStats and not showChangelog
+   leftPanel.Visible = showHome
    statsPanel.Visible = showStats
-   SetTabButtonActive(togglesTabBtn, not showStats)
+   changelogPanel.Visible = showChangelog
+   SetTabButtonActive(togglesTabBtn, showHome)
    SetTabButtonActive(statsTabBtn, showStats)
+   SetTabButtonActive(changelogTabBtn, showChangelog)
    if showStats and RefreshStatsPanel then
     RefreshStatsPanel()
    end
@@ -1206,8 +1448,10 @@ spawn_func(function()
 
   togglesTabBtn.MouseButton1Click:Connect(function() SwitchTab("toggles") end)
   statsTabBtn.MouseButton1Click:Connect(function() SwitchTab("stats") end)
+  changelogTabBtn.MouseButton1Click:Connect(function() SwitchTab("changelog") end)
   SetTabButtonActive(togglesTabBtn, true)
   SetTabButtonActive(statsTabBtn, false)
+  SetTabButtonActive(changelogTabBtn, false)
 
   local rightPanel = Instance.new("Frame")
   rightPanel.Name = "RightPanel"
@@ -1325,6 +1569,10 @@ spawn_func(function()
    ToggleFingerprint = { get = function() return VyrnoxGuard.ToggleFingerprint end, help = "ToggleFingerprint(true/false)" },
    ToggleTokens = { get = function() return VyrnoxGuard.ToggleTokens end, help = "ToggleTokens(true/false)" },
    ToggleMetatable = { get = function() return VyrnoxGuard.ToggleMetatable end, help = "ToggleMetatable(true/false) - __namecall/__newindex hooks (auto-disabled if anti-cheat detected)" },
+   ToggleFakeIP = { get = function() return VyrnoxGuard.ToggleFakeIP end, help = "ToggleFakeIP(true/false) - swap your real IP for a decoy instead of blocking" },
+   ToggleWebhookBlock = { get = function() return VyrnoxGuard.ToggleWebhookBlock end, help = "ToggleWebhookBlock(true/false) - off warns but lets webhook requests through" },
+   ToggleCloudReputation = { get = function() return VyrnoxGuard.ToggleCloudReputation end, help = "ToggleCloudReputation(true/false) - check borderline URLs against your reputation worker" },
+   SetCloudReputationEndpoint = { get = function() return VyrnoxGuard.SetCloudReputationEndpoint end, help = "SetCloudReputationEndpoint(\"url\", \"key\") - point at your deployed reputation worker" },
    PrintHookStatus = { get = function() return VyrnoxGuard.PrintHookStatus end, help = "PrintHookStatus() - check if hooks are still intact" },
   }
 
@@ -1512,16 +1760,101 @@ spawn_func(function()
   end
 
   local toggleDefs = {
-   { label = "Protect Cookies", desc = "Blocks your .ROBLOSECURITY session cookie from leaving, plaintext, URL/hex/base64-encoded, reversed, or XOR-obfuscated.", get = function() return ProtectCookies end, set = VyrnoxGuard.ToggleCookies },
-   { label = "Protect IP", desc = "Blocks your public IP address from appearing in outgoing requests or file writes.", get = function() return ProtectIP end, set = VyrnoxGuard.ToggleIP },
-   { label = "Protect WebSocket", desc = "Scans WebSocket connections and outgoing messages the same way HTTP requests are scanned.", get = function() return ProtectWebSocket end, set = VyrnoxGuard.ToggleWebSocket },
-   { label = "Protect Domains", desc = "Blocks known IP-logger domains and scores suspicious infrastructure, raw IPs, dynamic DNS, odd ports, DGA-style hostnames.", get = function() return ProtectDomains end, set = VyrnoxGuard.ToggleDomains },
-   { label = "Protect Filesystem", desc = "Blocks sensitive data before it's written to disk, and guards against mass file deletion.", get = function() return ProtectFilesystem end, set = VyrnoxGuard.ToggleFilesystem },
-   { label = "Protect Console/GUI", desc = "Redacts sensitive data before it can be printed to console or shown in a GUI text label.", get = function() return ProtectConsoleGui end, set = VyrnoxGuard.ToggleConsoleGui },
-   { label = "Protect Fingerprint", desc = "Learns and blocks new IP-logger domains from page content.", get = function() return ProtectFingerprint end, set = VyrnoxGuard.ToggleFingerprint },
-   { label = "Protect Tokens", desc = "Blocks Discord, JWT, and OAuth tokens from leaving in outgoing requests.", get = function() return ProtectTokens end, set = VyrnoxGuard.ToggleTokens },
-   { label = "Protect Metatable", desc = "Hooks game's raw __namecall/__newindex (catches direct Instance:HttpGet() calls, pixel-buffer APIs, GUI leaks).", get = function() return ProtectMetatable end, set = VyrnoxGuard.ToggleMetatable },
-   { label = "Protect Webhooks", desc = "Blocks requests to Discord/generic webhook endpoints and known paste/dump services.", get = function() return BlockWebhooks end, set = VyrnoxGuard.ToggleWebhooks },
+   {
+    label = "Protect Cookies", desc = "Blocks your .ROBLOSECURITY session cookie from leaving, plaintext, URL/hex/base64-encoded, reversed, or XOR-obfuscated.",
+    get = function()
+     return ProtectCookies
+    end,
+    set = VyrnoxGuard.ToggleCookies
+   },
+   {
+    label = "Protect IP", desc = "Blocks your public IP address from appearing in outgoing requests or file writes.",
+    get = function()
+     return ProtectIP
+    end,
+    set = VyrnoxGuard.ToggleIP,
+    subToggles = {
+     {
+      label = "Fake IP", desc = "Instead of blocking, swaps your real IP for a random decoy IPv4/IPv6 address in outgoing requests so the request still goes through.",
+      get = function()
+       return FakeIPEnabled
+      end,
+      set = VyrnoxGuard.ToggleFakeIP
+     },
+    },
+   },
+   {
+    label = "Protect WebSocket", desc = "Scans WebSocket connections and outgoing messages the same way HTTP requests are scanned.",
+    get = function()
+     return ProtectWebSocket
+    end,
+    set = VyrnoxGuard.ToggleWebSocket
+   },
+   {
+    label = "Protect Domains", desc = "Blocks known IP-logger domains and scores suspicious infrastructure, raw IPs, dynamic DNS, odd ports, DGA-style hostnames.",
+    get = function()
+     return ProtectDomains
+    end,
+    set = VyrnoxGuard.ToggleDomains
+   },
+   {
+    label = "Protect Filesystem", desc = "Blocks sensitive data before it's written to disk, and guards against mass file deletion.",
+    get = function()
+     return ProtectFilesystem
+    end,
+    set = VyrnoxGuard.ToggleFilesystem
+   },
+   {
+    label = "Protect Console/GUI", desc = "Redacts sensitive data before it can be printed to console or shown in a GUI text label.",
+    get = function()
+     return ProtectConsoleGui
+    end,
+    set = VyrnoxGuard.ToggleConsoleGui
+   },
+   {
+    label = "Protect Fingerprint", desc = "Learns and blocks new IP-logger domains from page content.",
+    get = function()
+     return ProtectFingerprint
+    end,
+    set = VyrnoxGuard.ToggleFingerprint
+   },
+   {
+    label = "Protect Tokens", desc = "Blocks Discord, JWT, and OAuth tokens from leaving in outgoing requests.",
+    get = function()
+     return ProtectTokens
+    end,
+    set = VyrnoxGuard.ToggleTokens
+   },
+   {
+    label = "Protect Metatable", desc = "Hooks game's raw __namecall/__newindex (catches direct Instance:HttpGet() calls, pixel-buffer APIs, GUI leaks).",
+    get = function()
+     return ProtectMetatable
+    end,
+    set = VyrnoxGuard.ToggleMetatable
+   },
+   {
+    label = "Protect Webhooks", desc = "Blocks requests to Discord/generic webhook endpoints and known paste/dump services.",
+    get = function()
+     return BlockWebhooks
+    end,
+    set = VyrnoxGuard.ToggleWebhooks,
+    subToggles = {
+     {
+      label = "Block", desc = "On: actually blocks the request. Off: still detects and warns/logs it, but lets it through.",
+      get = function()
+       return BlockWebhooksHardBlock
+      end,
+      set = VyrnoxGuard.ToggleWebhookBlock
+     },
+    },
+   },
+   {
+    label = "Cloud Reputation", desc = "Sends borderline-suspicion URLs to a reputation-check server before blocking. Needs an endpoint configured and adds a network round-trip. Configure with SetCloudReputationEndpoint(\"url\", \"key\") in the console.",
+    get = function()
+     return ProtectCloudReputation
+    end,
+    set = VyrnoxGuard.ToggleCloudReputation
+   },
   }
   local totalToggles = #toggleDefs
 
@@ -1560,6 +1893,7 @@ spawn_func(function()
   end
 
   local TAP_MOVE_THRESHOLD = 8
+  local HOLD_DURATION = 0.5
 
   local function IsInsideBounds(position, guiObject)
    local absPos = guiObject.AbsolutePosition
@@ -1567,12 +1901,97 @@ spawn_func(function()
    return position.X >= absPos.X and position.X <= (absPos.X + absSize.X) and position.Y >= absPos.Y and position.Y <= (absPos.Y + absSize.Y)
   end
 
+  local function ToggleSubmenu(def)
+   local vis = toggleVisuals[def]
+   if not vis or not vis.subContainer then return end
+
+   vis.expanded = not vis.expanded
+   if vis.tween then vis.tween:Cancel() end
+
+   local targetHeight = vis.expanded and vis.subContainerHeight or 0
+   vis.tween = TweenService:Create(vis.subContainer, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    Size = UDim2.new(1, 0, 0, targetHeight),
+   })
+   vis.tween:Play()
+  end
+
+  local SUB_ON = UDim2.new(1, -16, 0.5, 0)
+  local SUB_OFF = UDim2.new(0, 2, 0.5, 0)
+
+  local function BuildSubToggleRow(subDef, order, parent)
+   local subState = subDef.get and subDef.get() == true or (subDef.default == true)
+
+   local subRow = Instance.new("Frame")
+   subRow.Size = UDim2.new(1, -20, 0, 28)
+   subRow.Position = UDim2.new(0, 20, 0, 0)
+   subRow.BackgroundTransparency = 1
+   subRow.LayoutOrder = order
+   subRow.Parent = parent
+
+   local subLabel = Instance.new("TextLabel")
+   subLabel.BackgroundTransparency = 1
+   subLabel.Size = UDim2.new(1, -46, 1, 0)
+   subLabel.Font = Enum.Font.Gotham
+   subLabel.TextSize = 12
+   subLabel.TextXAlignment = Enum.TextXAlignment.Right
+   subLabel.TextColor3 = TEXT_DIM
+   subLabel.Text = subDef.label
+   subLabel.Parent = subRow
+
+   local subPill = Instance.new("TextButton")
+   subPill.Name = "SubToggle"
+   subPill.Text = ""
+   subPill.AutoButtonColor = false
+   subPill.AnchorPoint = Vector2.new(1, 0.5)
+   subPill.Size = UDim2.new(0, 34, 0, 18)
+   subPill.Position = UDim2.new(1, 0, 0.5, 0)
+   subPill.BackgroundColor3 = subState and CALM or KNOB_OFF
+   subPill.BorderSizePixel = 0
+   subPill.Parent = subRow
+   NewCorner(9, subPill)
+
+   local subKnob = Instance.new("Frame")
+   subKnob.Size = UDim2.new(0, 14, 0, 14)
+   subKnob.AnchorPoint = Vector2.new(0, 0.5)
+   subKnob.Position = subState and SUB_ON or SUB_OFF
+   subKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+   subKnob.BorderSizePixel = 0
+   subKnob.Parent = subPill
+   NewCorner(7, subKnob)
+
+   subPill.MouseButton1Click:Connect(function()
+    subState = not subState
+    if subDef.set then subDef.set(subState) end
+    TweenService:Create(subPill, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+     BackgroundColor3 = subState and CALM or KNOB_OFF,
+    }):Play()
+    TweenService:Create(subKnob, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+     Position = subState and SUB_ON or SUB_OFF,
+    }):Play()
+   end)
+
+   return subRow
+  end
+
   local function BuildToggleRow(def, order)
+   local group = Instance.new("Frame")
+   group.Name = "ToggleGroup"
+   group.Size = UDim2.new(1, 0, 0, 0)
+   group.AutomaticSize = Enum.AutomaticSize.Y
+   group.BackgroundTransparency = 1
+   group.LayoutOrder = order * 10
+   group.Parent = leftPanel
+
+   local groupLayout = Instance.new("UIListLayout")
+   groupLayout.Padding = UDim.new(0, 0)
+   groupLayout.SortOrder = Enum.SortOrder.LayoutOrder
+   groupLayout.Parent = group
+
    local row = Instance.new("Frame")
    row.Size = UDim2.new(1, 0, 0, 36)
    row.BackgroundTransparency = 1
-   row.LayoutOrder = order
-   row.Parent = leftPanel
+   row.LayoutOrder = 1
+   row.Parent = group
 
    local infoZone = Instance.new("TextButton")
    infoZone.Name = "InfoZone"
@@ -1584,11 +2003,30 @@ spawn_func(function()
 
    local isPressed = false
    local startPosition = Vector2.zero
+   local longPressFired = false
+   local pressGen = 0
 
    infoZone.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
      isPressed = true
+     longPressFired = false
      startPosition = Vector2.new(input.Position.X, input.Position.Y)
+
+     if input.UserInputType == Enum.UserInputType.Touch then
+      pressGen = pressGen + 1
+      local myGen = pressGen
+      delay_func(HOLD_DURATION, function()
+       if myGen ~= pressGen or not isPressed then return end
+       local current = Vector2.new(input.Position.X, input.Position.Y)
+       if (current - startPosition).Magnitude <= TAP_MOVE_THRESHOLD then
+        longPressFired = true
+        ToggleSubmenu(def)
+       end
+      end)
+     end
+
+    elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+     ToggleSubmenu(def)
     end
    end)
 
@@ -1596,6 +2034,8 @@ spawn_func(function()
     if not isPressed then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
      isPressed = false
+     pressGen = pressGen + 1
+     if longPressFired then return end
      local endPosition = Vector2.new(input.Position.X, input.Position.Y)
      local dragDistance = (endPosition - startPosition).Magnitude
      if dragDistance <= TAP_MOVE_THRESHOLD and IsInsideBounds(endPosition, infoZone) then
@@ -1637,6 +2077,30 @@ spawn_func(function()
 
    toggleVisuals[def] = { pill = pill, knob = knob }
 
+   if def.subToggles and #def.subToggles > 0 then
+    local subContainer = Instance.new("Frame")
+    subContainer.Name = "SubContainer"
+    subContainer.BackgroundTransparency = 1
+    subContainer.ClipsDescendants = true
+    subContainer.Size = UDim2.new(1, 0, 0, 0)
+    subContainer.LayoutOrder = 2
+    subContainer.Parent = group
+
+    local subLayout = Instance.new("UIListLayout")
+    subLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    subLayout.Padding = UDim.new(0, 2)
+    subLayout.Parent = subContainer
+
+    for si, subDef in ipairs(def.subToggles) do
+     BuildSubToggleRow(subDef, si, subContainer)
+    end
+
+    local subCount = #def.subToggles
+    toggleVisuals[def].subContainer = subContainer
+    toggleVisuals[def].subContainerHeight = subCount * 28 + math.max(0, subCount - 1) * 2
+    toggleVisuals[def].expanded = false
+   end
+
    local baseSize = pill.Size
    local hoverSize = UDim2.new(0, 50, 0, 25)
 
@@ -1666,17 +2130,19 @@ spawn_func(function()
   SyncAllToggleVisuals()
 
   do
+   local scanOrderBase = totalToggles * 10 + 10
+
    local spacer = Instance.new("Frame")
    spacer.Size = UDim2.new(1, 0, 0, 6)
    spacer.BackgroundTransparency = 1
-   spacer.LayoutOrder = totalToggles + 1
+   spacer.LayoutOrder = scanOrderBase + 1
    spacer.Parent = leftPanel
 
    local scanSlot = Instance.new("Frame")
    scanSlot.Name = "ScanSlot"
    scanSlot.Size = UDim2.new(1, 0, 0, 40)
    scanSlot.BackgroundTransparency = 1
-   scanSlot.LayoutOrder = totalToggles + 2
+   scanSlot.LayoutOrder = scanOrderBase + 2
    scanSlot.Parent = leftPanel
 
    local scanBtn = Instance.new("TextButton")
@@ -2010,8 +2476,21 @@ end
 
 local function ExtractHost(url)
  local stripped = url:match("^https?://(.+)$") or url
- local host = stripped:match("^([^/]+)") or stripped
- return host:match("^([^:]+)") or host
+ stripped = stripped:match("^[^@/]+@(.+)$") or stripped
+ local authority = stripped:match("^([^/?#]+)") or stripped
+
+ local bracketed = authority:match("^%[([^%]]+)%]")
+ if bracketed then
+  return bracketed
+ end
+
+ local colonCount = 0
+ for _ in authority:gmatch(":") do colonCount = colonCount + 1 end
+ if colonCount >= 2 and authority:match("^[%x:]+$") then
+  return authority
+ end
+
+ return authority:match("^([^:]+)") or authority
 end
 
 local function MatchesDomainList(host, list)
@@ -2057,13 +2536,92 @@ local function ScanForGiveaways(bodyStr)
  return nil
 end
 
-local function InspectResponseForGiveaways(host, bodyStr)
+local LocationFieldNamesSoft = {
+ "country", "region", "city", "zip", "postal", "lat", "latitude", "lon",
+ "longitude", "timezone", "country_code", "region_code",
+ "continent", "continent_code", "currency", "calling_code", "area_code",
+ "metro_code", "organization",
+}
+local LocationFieldNamesHard = {
+ "isp", "org", "asn", "ip", "ipaddress", "ip_address", "query",
+ "origin", "ipv4", "ipv6", "publicip", "public_ip",
+}
+local LocationFieldSet = {}
+for _, f in ipairs(LocationFieldNamesSoft) do LocationFieldSet[f] = "soft" end
+for _, f in ipairs(LocationFieldNamesHard) do LocationFieldSet[f] = "hard" end
+
+local LocationFieldThreshold = 5
+
+local function ScanJSONForLocationSchema(bodyStr)
+ if typeof(bodyStr) ~= "string" or bodyStr == "" then return false, 0 end
+ local ok, decoded = pcall(function()
+  return game:GetService("HttpService"):JSONDecode(bodyStr)
+ end)
+ if not ok or typeof(decoded) ~= "table" then return false, 0 end
+
+ local matches = 0
+ local hardMatches = 0
+ local function Scan(t, depth)
+  if depth > 4 then return end
+  for k, v in pairs(t) do
+   if typeof(k) == "string" then
+    local kind = LocationFieldSet[k:lower()]
+    if kind then
+     matches = matches + 1
+     if kind == "hard" then hardMatches = hardMatches + 1 end
+    end
+   end
+   if typeof(v) == "table" then
+    Scan(v, depth + 1)
+   end
+  end
+ end
+ pcall(Scan, decoded, 0)
+
+ local isLocationSchema = matches >= LocationFieldThreshold and hardMatches >= 1
+ return isLocationSchema, matches
+end
+
+local SuspiciousHeaderNames = {
+ "^x%-forwarded%-for$", "^x%-real%-ip$", "^cf%-connecting%-ip$", "^x%-client%-ip$",
+ "^forwarded$", "^true%-client%-ip$", "^x%-forwarded%-host$", "^x%-originating%-ip$",
+ "^client%-ip$", "^remote%-addr$",
+}
+
+local function HasSuspiciousHeaderNames(headers)
+ if typeof(headers) ~= "table" then return false, nil end
+ for key in pairs(headers) do
+  local lowered = tostring(key):lower()
+  for _, pattern in ipairs(SuspiciousHeaderNames) do
+   if lowered:match(pattern) then
+    return true, tostring(key)
+   end
+  end
+ end
+ return false, nil
+end
+
+local function InspectResponseForGiveaways(host, bodyStr, responseHeaders)
  if host == "" or IsWhitelistedHost(host) or RuntimeBlockedDomains[host] then return false end
+
  local match = ScanForGiveaways(bodyStr)
  if match then
   MarkRuntimeBlocked(host, 'response matched blocklist "' .. match .. '"')
   return true
  end
+
+ local isLocationSchema, fieldCount = ScanJSONForLocationSchema(bodyStr)
+ if isLocationSchema then
+  MarkRuntimeBlocked(host, "response JSON matched geolocation/logger schema (" .. fieldCount .. " matching fields)")
+  return true
+ end
+
+ local susHeader, headerName = HasSuspiciousHeaderNames(responseHeaders)
+ if susHeader then
+  MarkRuntimeBlocked(host, "response contained suspicious IP-forwarding header: " .. headerName)
+  return true
+ end
+
  return false
 end
 
@@ -2074,12 +2632,12 @@ local IPLookupCandidates = {
 
 local UserIP = nil
 local function FetchUserIP()
- if not httprequest then
+ if not request_func then
   Console("warn", "No raw request available, IP-leak detection disabled")
   return
  end
  for _, url in ipairs(IPLookupCandidates) do
-  local ok, res = pcall(httprequest, { Url = url, Method = "GET" })
+  local ok, res = pcall(request_func, { Url = url, Method = "GET" })
   if ok and res and res.Body then
    local candidate = res.Body:gsub("%s+", "")
    if candidate:match("^%d+%.%d+%.%d+%.%d+$") or candidate:match("^[%x:]+$") then
@@ -2109,6 +2667,70 @@ local function ContainsUserIP(str)
  end
 end
 
+local function ScrubUserIP(str)
+ if not (ProtectIP and FakeIPEnabled and UserIP) or typeof(str) ~= "string" or str == "" then
+  return str, false
+ end
+ local escaped = UserIP:gsub("[%.%-]", "%%%1")
+ local pattern = "%f[%w]" .. escaped .. "%f[%W]"
+ local fake = GetFakeIP()
+ local changed = false
+ local out = {}
+ local pos = 1
+ while true do
+  local s, e = str:find(pattern, pos)
+  if not s then
+   table.insert(out, str:sub(pos))
+   break
+  end
+  local before = str:sub(s - 1, s - 1)
+  local after = str:sub(e + 1, e + 1)
+  if before ~= "." and after ~= "." and not before:match("%d") and not after:match("%d") then
+   table.insert(out, str:sub(pos, s - 1))
+   table.insert(out, fake)
+   changed = true
+  else
+   table.insert(out, str:sub(pos, e))
+  end
+  pos = e + 1
+ end
+ return table.concat(out), changed
+end
+
+local function ScrubHeaders(headers)
+ if not (ProtectIP and FakeIPEnabled and UserIP) or typeof(headers) ~= "table" then
+  return headers, false
+ end
+ local changed = false
+ local out = {}
+ for k, v in pairs(headers) do
+  if typeof(v) == "string" then
+   local scrubbed, didChange = ScrubUserIP(v)
+   out[k] = scrubbed
+   if didChange then changed = true end
+  else
+   out[k] = v
+  end
+ end
+ return out, changed
+end
+
+local function ApplyScrubbedOptions(options, scrubbedUrl, urlChanged, scrubbedBody, bodyChanged, scrubbedHeaders, headersChanged)
+ if not (urlChanged or bodyChanged or headersChanged) then return options end
+ local out = {}
+ for k, v in pairs(options) do out[k] = v end
+ if urlChanged then
+  if out.Url ~= nil then out.Url = scrubbedUrl else out.url = scrubbedUrl end
+ end
+ if bodyChanged then
+  if out.Body ~= nil then out.Body = scrubbedBody else out.body = scrubbedBody end
+ end
+ if headersChanged then
+  if out.Headers ~= nil then out.Headers = scrubbedHeaders else out.headers = scrubbedHeaders end
+ end
+ return out
+end
+
 local function ScanString(str, checkDeobfuscated)
  if typeof(str) ~= "string" or str == "" then return false, nil end
 
@@ -2123,7 +2745,7 @@ local function ScanString(str, checkDeobfuscated)
 
  if BlockWebhooks and (decoded:find("/api/webhooks/", 1, true) or decoded:find("webhook.site", 1, true)
     or decoded:find("pipedream.net", 1, true) or decoded:find("requestcatcher.com", 1, true)) then
-  return true, "Blocked data exfiltration to Webhook"
+  return true, "Blocked data exfiltration to Webhook", "webhook"
  end
 
  if ProtectDomains then
@@ -2139,7 +2761,7 @@ local function ScanString(str, checkDeobfuscated)
   end
   if BlockWebhooks and (b64Decoded:find("/api/webhooks/", 1, true) or b64Decoded:find("webhook.site", 1, true)
      or b64Decoded:find("pipedream.net", 1, true) or b64Decoded:find("requestcatcher.com", 1, true)) then
-   return true, "Blocked base64-encoded webhook exfiltration"
+   return true, "Blocked base64-encoded webhook exfiltration", "webhook"
   end
  end
 
@@ -2176,9 +2798,9 @@ local function ScanString(str, checkDeobfuscated)
  if checkDeobfuscated then
   local clean = Deobfuscate(str)
   if clean ~= str and clean ~= "" then
-   local bad, reason = ScanString(clean, false)
+   local bad, reason, kind = ScanString(clean, false)
    if bad then
-    return true, reason .. " (found after deobfuscation)"
+    return true, reason .. " (found after deobfuscation)", kind
    end
   end
  end
@@ -2259,13 +2881,37 @@ local SuspiciousTlds = {
 
 local function IsRawIPHost(host)
  if host:match("^%d+%.%d+%.%d+%.%d+$") then return true end
- if host:find(":", 1, true) and host:match("^[%x:%[%]]+$") then return true end
+
+ local candidate = host:match("^%[(.+)%]$") or host
+ if candidate:match("^[%x:]+$") then
+  local colonCount = 0
+  for _ in candidate:gmatch(":") do colonCount = colonCount + 1 end
+  local _, doubleColons = candidate:gsub("::", "")
+  if colonCount >= 2 and doubleColons <= 1 then
+   return true
+  end
+ end
  return false
 end
 
 local function HasNonStandardPort(url)
  if typeof(url) ~= "string" then return false end
- local port = tonumber(url:match("://[^/]-:(%d+)"))
+
+ local authority = url:match("^https?://([^/?#]+)")
+ if not authority then return false end
+
+ local port
+ local bracketPort = authority:match("^%[[^%]]+%]:(%d+)$")
+ if bracketPort then
+  port = tonumber(bracketPort)
+ elseif not authority:find("%[") then
+  local colonCount = 0
+  for _ in authority:gmatch(":") do colonCount = colonCount + 1 end
+  if colonCount <= 1 then
+   port = tonumber(authority:match(":(%d+)$"))
+  end
+ end
+
  return port ~= nil and port ~= 80 and port ~= 443
 end
 
@@ -2315,9 +2961,9 @@ local function ScoreC2Suspicion(url, host, body, method)
   table.insert(extraReasons, "disposable-leaning TLD")
  end
 
- if method == "POST" and typeof(body) == "string" and #body > 20 then
+ if method == "POST" and typeof(body) == "string" and #body > 200 then
   local entropy = CalculateEntropy(body)
-  if entropy > 5.5 then
+  if entropy > 7.2 then
    score = score + 1
    table.insert(reasons, string.format("high-entropy payload (%.2f)", entropy))
   end
@@ -2328,6 +2974,40 @@ local function ScoreC2Suspicion(url, host, body, method)
  end
 
  return score, table.concat(reasons, ", ")
+end
+
+local function UrlEncode(str)
+ return (str:gsub("[^%w%-%.%_%~]", function(c)
+  return string.format("%%%02X", c:byte())
+ end))
+end
+
+local function CloudReputationCheck(url)
+ if not ProtectCloudReputation or CRE == "" or not request_func then
+  return nil
+ end
+
+ local ok, response = pcall(request_func, {
+  Url = CRE .. "?url=" .. UrlEncode(url),
+  Method = "GET",
+ })
+ if not ok or typeof(response) ~= "table" or response.StatusCode ~= 200 or typeof(response.Body) ~= "string" then
+  return nil
+ end
+
+ local decodeOk, data = pcall(function()
+  return game:GetService("HttpService"):JSONDecode(response.Body)
+ end)
+ if not decodeOk or typeof(data) ~= "table" then
+  return nil
+ end
+
+ if data.malicious == true then
+  return true, typeof(data.reason) == "string" and data.reason or "flagged by cloud reputation check"
+ elseif data.malicious == false then
+  return false, nil
+ end
+ return nil
 end
 
 local C2BlockThreshold = 4
@@ -2344,15 +3024,28 @@ local function ThreatScan(url, body, headers, method)
    return true, "Blocked, possible C2 infrastructure (" .. c2Reasons .. ")"
   elseif c2Score > 0 then
    LogEvent("c2-suspicion", host .. " meter " .. c2Score .. " (" .. c2Reasons .. ")")
+   if method ~= "POST" or typeof(body) ~= "string" or #body < 4096 then
+    local cloudBad, cloudReason = CloudReputationCheck(url)
+    if cloudBad then
+     return true, "Blocked, cloud reputation check (" .. cloudReason .. ")"
+    end
+   end
   end
  end
 
- local bad, reason = ScanString(url, true)
- if bad then return true, reason end
- bad, reason = ScanString(body, true)
- if bad then return true, reason end
+ local bad, reason, kind = ScanString(url, true)
+ if bad then return true, reason, kind end
+ bad, reason, kind = ScanString(body, true)
+ if bad then return true, reason, kind end
  bad, reason = ScanHeaders(headers)
  if bad then return true, reason end
+
+ if ProtectIP and not trustedVolume then
+  local susHeader, headerName = HasSuspiciousHeaderNames(headers)
+  if susHeader then
+   return true, "Blocked request setting suspicious IP-forwarding header: " .. headerName
+  end
+ end
 
  if ProtectCookies and typeof(body) == "string" and body ~= "" then
   if TryXorContainsCookie(body) then
@@ -2444,7 +3137,8 @@ if hook_func then
    local wrapper = cclosure(function(options)
     CountHttpRequestSeen()
     local url, body, headers, method = "", "", nil, nil
-    if typeof(options) == "table" then
+    local optsIsTable = typeof(options) == "table"
+    if optsIsTable then
      url = options.Url or options.url or ""
      body = options.Body or options.body or ""
      headers = options.Headers or options.headers
@@ -2452,19 +3146,36 @@ if hook_func then
     elseif typeof(options) == "string" then
      url = options
     end
-    local bad, reason = ThreatScan(url, body, headers, method)
+
+    local scrubbedUrl, urlChanged = ScrubUserIP(url)
+    local scrubbedBody, bodyChanged = ScrubUserIP(body)
+    local scrubbedHeaders, headersChanged = ScrubHeaders(headers)
+
+    local bad, reason, kind = ThreatScan(scrubbedUrl, scrubbedBody, scrubbedHeaders, method)
     if bad then
-     Console("warn", reason .. " [Hook: " .. name .. "]")
-     LogBlock(reason, name, url)
-     return {StatusCode = 403, Success = false, Body = BLOCKED_JSON_BODY, Headers = {["Content-Type"] = "application/json"}}
+     if kind == "webhook" and not BlockWebhooksHardBlock then
+      Console("warn", reason .. " [Hook: " .. name .. "] (Block is off, letting it through)")
+      LogEvent("webhook-passthrough", reason .. " -> " .. tostring(scrubbedUrl), "warn")
+     else
+      Console("warn", reason .. " [Hook: " .. name .. "]")
+      LogBlock(reason, name, url)
+      return {StatusCode = 403, Success = false, Body = BLOCKED_JSON_BODY, Headers = {["Content-Type"] = "application/json"}}
+     end
     end
 
-    local res = old(options)
-    if ProtectFingerprint and typeof(res) == "table" and typeof(url) == "string" then
-     local host = ExtractHost(FullyUrlDecode(url)):lower()
-     if InspectResponseForGiveaways(host, res.Body) then
+    local finalOptions = options
+    if optsIsTable then
+     finalOptions = ApplyScrubbedOptions(options, scrubbedUrl, urlChanged, scrubbedBody, bodyChanged, scrubbedHeaders, headersChanged)
+    elseif urlChanged then
+     finalOptions = scrubbedUrl
+    end
+
+    local res = old(finalOptions)
+    if ProtectFingerprint and typeof(res) == "table" and typeof(scrubbedUrl) == "string" then
+     local host = ExtractHost(FullyUrlDecode(scrubbedUrl)):lower()
+     if InspectResponseForGiveaways(host, res.Body, res.Headers) then
       Console("warn", "Blocked response, matched IP logger content blocklist [Hook: " .. name .. "]")
-      LogBlock("Matched IP logger content blocklist", name, url)
+      LogBlock("Matched IP logger content blocklist", name, scrubbedUrl)
       return {StatusCode = 403, Success = false, Body = BLOCKED_JSON_BODY, Headers = {["Content-Type"] = "application/json"}}
      end
     end
@@ -2530,26 +3241,40 @@ local function WrapWebSocketConnect(name, connectFn)
  if typeof(connectFn) ~= "function" or hooked_functions[connectFn] then return end
  local oldConnect
  oldConnect = hook_func(connectFn, cclosure(function(url, ...)
+  local scrubbedUrl = url
   if ProtectWebSocket and typeof(url) == "string" then
-   local bad, reason = ThreatScan(url, "", nil, nil)
+   scrubbedUrl = ScrubUserIP(url)
+   local bad, reason, kind = ThreatScan(scrubbedUrl, "", nil, nil)
    if bad then
-    Console("warn", reason .. " [Hook: " .. name .. "]")
-    LogBlock(reason, name, url)
-    return nil
+    if kind == "webhook" and not BlockWebhooksHardBlock then
+     Console("warn", reason .. " [Hook: " .. name .. "] (Block is off, letting it through)")
+     LogEvent("webhook-passthrough", reason .. " -> " .. tostring(scrubbedUrl), "warn")
+    else
+     Console("warn", reason .. " [Hook: " .. name .. "]")
+     LogBlock(reason, name, url)
+     return nil
+    end
    end
   end
-  local socket = oldConnect(url, ...)
+  local socket = oldConnect(scrubbedUrl, ...)
   if typeof(socket) == "table" and typeof(socket.Send) == "function" and not hooked_functions[socket.Send] then
    local oldSend
    local liveSend = socket.Send
    oldSend = hook_func(socket.Send, cclosure(function(self, data, ...)
     if ProtectWebSocket and typeof(data) == "string" then
-     local bad, reason = ScanString(data, true)
+     local scrubbedData = ScrubUserIP(data)
+     local bad, reason, kind = ScanString(scrubbedData, true)
      if bad then
-      Console("warn", reason .. " [Hook: " .. name .. ":Send]")
-      LogBlock(reason, name .. ":Send", url)
-      return nil
+      if kind == "webhook" and not BlockWebhooksHardBlock then
+       Console("warn", reason .. " [Hook: " .. name .. ":Send] (Block is off, letting it through)")
+       LogEvent("webhook-passthrough", reason .. " -> " .. tostring(scrubbedUrl), "warn")
+      else
+       Console("warn", reason .. " [Hook: " .. name .. ":Send]")
+       LogBlock(reason, name .. ":Send", scrubbedUrl)
+       return nil
+      end
      end
+     return oldSend(self, scrubbedData, ...)
     end
     return oldSend(self, data, ...)
    end))
@@ -2815,22 +3540,34 @@ spawn_func(function()
   raw.__namecall = cclosure(function(self, ...)
    local method = getnamecallmethod()
    if method == "HttpGet" or method == "HttpGetAsync" or method == "HttpPost" or method == "HttpPostAsync" or method == "GetAsync" or method == "PostAsync" then
-    local url, body = ...
+    local n = select("#", ...)
+    local args = {...}
+    local url, body = args[1], args[2]
     if typeof(url) == "string" then
      CountHttpRequestSeen()
-     local bad, reason = ThreatScan(url, typeof(body) == "string" and body or "", nil, method)
+     local scrubbedUrl, urlChanged = ScrubUserIP(url)
+     local scrubbedBody, bodyChanged = ScrubUserIP(typeof(body) == "string" and body or "")
+     local bad, reason, kind = ThreatScan(scrubbedUrl, scrubbedBody, nil, method)
      if bad then
-      Console("warn", reason .. " [Hook: " .. method .. "]")
-      LogBlock(reason, method, url)
-      return BLOCKED_JSON_BODY
+      if kind == "webhook" and not BlockWebhooksHardBlock then
+       Console("warn", reason .. " [Hook: " .. method .. "] (Block is off, letting it through)")
+       LogEvent("webhook-passthrough", reason .. " -> " .. tostring(scrubbedUrl), "warn")
+      else
+       Console("warn", reason .. " [Hook: " .. method .. "]")
+       LogBlock(reason, method, url)
+       return BLOCKED_JSON_BODY
+      end
      end
 
-     local result = oldnamecall(self, ...)
+     if urlChanged then args[1] = scrubbedUrl end
+     if bodyChanged and typeof(body) == "string" then args[2] = scrubbedBody end
+
+     local result = oldnamecall(self, table.unpack(args, 1, n))
      if ProtectFingerprint and typeof(result) == "string" then
-      local host = ExtractHost(FullyUrlDecode(url)):lower()
+      local host = ExtractHost(FullyUrlDecode(scrubbedUrl)):lower()
       if InspectResponseForGiveaways(host, result) then
        Console("warn", "Blocked response, matched IP logger content blocklist [Hook: " .. method .. "]")
-       LogBlock("Matched IP logger content blocklist", method, url)
+       LogBlock("Matched IP logger content blocklist", method, scrubbedUrl)
        return BLOCKED_JSON_BODY
       end
      end
@@ -2846,19 +3583,28 @@ spawn_func(function()
      local url = options.Url or options.url or ""
      local body = options.Body or options.body or ""
      local headers = options.Headers or options.headers
-     local bad, reason = ThreatScan(url, body, headers, method)
+     local scrubbedUrl, urlChanged = ScrubUserIP(url)
+     local scrubbedBody, bodyChanged = ScrubUserIP(body)
+     local scrubbedHeaders, headersChanged = ScrubHeaders(headers)
+     local bad, reason, kind = ThreatScan(scrubbedUrl, scrubbedBody, scrubbedHeaders, method)
      if bad then
-      Console("warn", reason .. " [Hook: RequestAsync]")
-      LogBlock(reason, "RequestAsync", url)
-      return {Success = false, StatusCode = 403, Body = BLOCKED_JSON_BODY, Headers = {["Content-Type"] = "application/json"}}
+      if kind == "webhook" and not BlockWebhooksHardBlock then
+       Console("warn", reason .. " [Hook: RequestAsync] (Block is off, letting it through)")
+       LogEvent("webhook-passthrough", reason .. " -> " .. tostring(scrubbedUrl), "warn")
+      else
+       Console("warn", reason .. " [Hook: RequestAsync]")
+       LogBlock(reason, "RequestAsync", url)
+       return {Success = false, StatusCode = 403, Body = BLOCKED_JSON_BODY, Headers = {["Content-Type"] = "application/json"}}
+      end
      end
 
-     local result = oldnamecall(self, ...)
-     if ProtectFingerprint and typeof(result) == "table" and typeof(url) == "string" then
-      local host = ExtractHost(FullyUrlDecode(url)):lower()
-      if InspectResponseForGiveaways(host, result.Body) then
+     local finalOptions = ApplyScrubbedOptions(options, scrubbedUrl, urlChanged, scrubbedBody, bodyChanged, scrubbedHeaders, headersChanged)
+     local result = oldnamecall(self, finalOptions)
+     if ProtectFingerprint and typeof(result) == "table" and typeof(scrubbedUrl) == "string" then
+      local host = ExtractHost(FullyUrlDecode(scrubbedUrl)):lower()
+      if InspectResponseForGiveaways(host, result.Body, result.Headers) then
        Console("warn", "Blocked response, matched IP logger content blocklist [Hook: RequestAsync]")
-       LogBlock("Matched IP logger content blocklist", "RequestAsync", url)
+       LogBlock("Matched IP logger content blocklist", "RequestAsync", scrubbedUrl)
        return {Success = false, StatusCode = 403, Body = BLOCKED_JSON_BODY, Headers = {["Content-Type"] = "application/json"}}
       end
      end
