@@ -3,8 +3,7 @@ local GAMES = {
   name = "The Rake REMASTERED",
   url = "https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/refs/heads/main/The%20Rake%20REMASTERED.lua"
  },
- --[[
- not done yet
+ --[[ not done
  [2768379856] = {
   name = "3008",
   url = "https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/refs/heads/main/3008.lua"
@@ -12,86 +11,54 @@ local GAMES = {
  ]]
 }
 
-const FOLDER_ROOT = "Vyrnox"
-const FOLDER_HUB = "Vyrnox/Hub"
-const CONSENT_PATH = "Vyrnox/Hub/.consent"
+local FOLDER_ROOT = "Vyrnox"
+local FOLDER_HUB = "Vyrnox/Hub"
+local SEEN_FLAG = FOLDER_HUB .. "/notice_seen.flag"
 
 local StarterGui = game:GetService("StarterGui")
 
-local function EnsureFolders()
- if not makefolder or not isfolder then return end
+local Seen = function()
+ local ok = pcall(readfile, SEEN_FLAG)
+ return ok
+end
+
+local MarkSeen = function()
  pcall(function()
-  if not isfolder(FOLDER_ROOT) then makefolder(FOLDER_ROOT) end
-  if not isfolder(FOLDER_HUB) then makefolder(FOLDER_HUB) end
+  if type(isfolder) == "function" and type(makefolder) == "function" then
+   if not isfolder(FOLDER_ROOT) then makefolder(FOLDER_ROOT) end
+   if not isfolder(FOLDER_HUB) then makefolder(FOLDER_HUB) end
+  end
+  writefile(SEEN_FLAG, "seen")
  end)
 end
 
-local function HasConsented()
- if not isfile or not readfile then return false end
- local ok, data = pcall(readfile, CONSENT_PATH)
- if not ok or type(data) ~= "string" then return false end
- return data:gsub("%s+", "") == "true"
-end
-
-local function SaveConsent()
- if not writefile then return end
- EnsureFolders()
- pcall(writefile, CONSENT_PATH, "true")
-end
-
---- initial. will show in the script anyways if skipped
-local function ConfirmLog()
- if HasConsented() then return true end
-
- local dur = 45
- local signal = Instance.new("BindableEvent")
- local bind = Instance.new("BindableFunction")
-
- bind.OnInvoke = function(button)
-  signal:Fire(button == "Agree")
-  return "ok"
- end
+local ConfirmLog = function()
+ if Seen() then return true end
 
  local shown = false
  for _ = 1, 20 do
   shown = pcall(function()
    StarterGui:SetCore("SendNotification", {
-    Title = "Clicking you agree",
-    Text = "Sends your userid, executor and game info. Security reasons (banning).",
-    Duration = dur,
-    Callback = bind,
-    Button1 = "Agree",
-    Button2 = "Decline"
+    Title = "using Vyrnox Hub",
+    Text = "Sends your username and user ID on security events (kicks, bans, appeals, feedback).",
+    Duration = 10,
    })
   end)
   if shown then break end
   task.wait(0.25)
  end
 
- if not shown then
-  return false
- end
-
- task.delay(dur, function()
-  signal:Fire(false)
- end)
-
- local agreed = signal.Event:Wait()
- if agreed then SaveConsent() end
- return agreed
+ if shown then MarkSeen() end
+ return shown
 end
 
-local function ResolveGame()
+local ResolveGame = function()
  local id = game.PlaceId
-
- if GAMES[id] then
-  return GAMES[id]
- end
-
+ if GAMES[id] then return GAMES[id] end
  return nil
 end
 
-local function NotifyUnsupported()
+local NotifyUnsupported = function()
  pcall(function()
   StarterGui:SetCore("SendNotification", {
    Title = "Vyrnox Hub",
@@ -107,9 +74,7 @@ if not entry then
  return
 end
 
-if not ConfirmLog() then
- return
-end
+ConfirmLog()
 
 local k, e = pcall(function()
  loadstring(game:HttpGet(entry.url))()
