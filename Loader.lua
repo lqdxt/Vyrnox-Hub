@@ -3,10 +3,13 @@ local GAMES = {
   name = "The Rake REMASTERED",
   url = "https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/refs/heads/main/The%20Rake%20REMASTERED.lua"
  },
+ --[[
+ not done yet
  [2768379856] = {
   name = "3008",
   url = "https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/refs/heads/main/3008.lua"
  }
+ ]]
 }
 
 const FOLDER_ROOT = "Vyrnox"
