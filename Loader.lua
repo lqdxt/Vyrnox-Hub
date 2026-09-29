@@ -1,7 +1,11 @@
 local GAMES: { [number]: { name: string, url: string } } = table.freeze({
  [2413927524] = {
   name = "The Rake REMASTERED",
-  url = "https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/refs/heads/main/The%20Rake%20REMASTERED.lua",
+  url = "https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/refs/heads/main/The%20Rake%20REMASTERED.lua"
+ },
+ [134208374070897] = {
+  name = "MONOCHROME",
+  url = "https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/refs/heads/main/MONOCHROME.lua"
  },
  --[[ not done
  [2768379856] = {
