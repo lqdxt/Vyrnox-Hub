@@ -72,7 +72,7 @@ local function ConfirmLog(): boolean
 
  local shown = Notify(
   "using Vyrnox Hub",
-  "Sends your username and user ID on security events (kicks, bans, appeals, feedback)",
+  "Sends your username on security events (kicks, bans, appeals)",
   15
  )
 
