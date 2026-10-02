@@ -71,12 +71,12 @@ local function Main(): ()
  ConfirmLog()
 
  if type(game.HttpGet) ~= "function" then
-  warn("env error: game:HttpGet is missing")
+  Notify("env error", "game:HttpGet is missing")
   return
  end
 
  if type(loadstring) ~= "function" then
-  warn("env error: loadstring is missing")
+  Notify("env error", "loadstring is missing")
   return
  end
 
@@ -85,7 +85,7 @@ local function Main(): ()
  end)
 
  if not k then
-  warn(tostring(e))
+  Notify("unknown error", tostring(e))
  end
 end
 
