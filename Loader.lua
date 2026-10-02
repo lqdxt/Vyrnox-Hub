@@ -1,3 +1,15 @@
+--[[
+ SUPPORTED GAMES:
+  The Rake REMASTERED
+  MONOCHROME
+
+ INFORMATION:
+  Key System:
+   Duration: 24 Hours
+   Keyless days: Saturday
+   Integration: Lootlabs
+]]
+
 local FOLDER_ROOT: string = "Vyrnox"
 local FOLDER_HUB: string = "Vyrnox/Hub"
 local SEEN_FLAG: string = FOLDER_HUB .. "/notice_seen.flag"
