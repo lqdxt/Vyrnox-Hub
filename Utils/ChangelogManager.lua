@@ -108,7 +108,7 @@ function ChangelogManager.Render(tab, versions)
     gameHeader.Font = Enum.Font.Code
     gameHeader.TextSize = 12
     gameHeader.LayoutOrder = order
-    gameHeader.Text = string.format('<font color="%s"><b>── %s ──</b></font>',
+    gameHeader.Text = string.format('<font color="%s"><b>- %s -</b></font>',
      Hex(GAME_HEADER_COLOR), tostring(section.name or "Unknown"))
     gameHeader.Parent = box
 
