@@ -127,7 +127,7 @@ function ChangelogManager.Render(tab, versions)
      line.Font = Enum.Font.Code
      line.TextSize = 12
      line.LayoutOrder = order
-     line.Text = string.format('    <font color="%s">[%s]</font> <font color="%s">%s</font>',
+     line.Text = string.format('<font color="%s">[%s]</font> <font color="%s">%s</font>',
       Hex(color), tag, Hex(color), text)
      line.Parent = box
     end
