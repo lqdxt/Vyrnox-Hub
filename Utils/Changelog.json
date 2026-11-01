@@ -4,7 +4,7 @@
    "version": "v3.0",
    "games": [
     {
-     "name": "All",
+     "name": "Global",
      "entries": [
       ["+", "Shared changelog"]
      ]
@@ -204,9 +204,14 @@
    "version": "v2.0",
    "games": [
     {
+     "name": "Global",
+     "entries": [
+      ["+", "Added Key System"]
+     ]
+    },
+    {
      "name": "The Rake REMASTERED",
      "entries": [
-      ["+", "Added Key System"],
       ["*", "Improved drag inputs"],
       ["*", "Improved button inputs"],
       ["!", "Fixed Auto Heal"],
