@@ -91,7 +91,7 @@ function ChangelogManager.Render(tab, versions)
   header.Font = Enum.Font.Code
   header.TextSize = 14
   header.LayoutOrder = order
-  header.Text = string.format('<font color="#ffffff"><b>%s</b></font>',
+  header.Text = string.format('<font color="#ffffff">%s</font>',
    tostring(ver.version or "?"))
   header.Parent = box
 
@@ -108,7 +108,7 @@ function ChangelogManager.Render(tab, versions)
     gameHeader.Font = Enum.Font.Code
     gameHeader.TextSize = 12
     gameHeader.LayoutOrder = order
-    gameHeader.Text = string.format('<font color="%s"><b>- %s -</b></font>',
+    gameHeader.Text = string.format('<font color="%s">- %s -</font>',
      Hex(GAME_HEADER_COLOR), tostring(section.name or "Unknown"))
     gameHeader.Parent = box
 
