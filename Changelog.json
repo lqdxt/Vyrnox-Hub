@@ -1,0 +1,333 @@
+{
+ "versions": [
+  {
+   "version": "v2.9",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["+", "Added tab icons"],
+      ["!", "Fixed a bug in Keep Item On Spawn"],
+      ["!", "Fixed Night Vision Goggles not turning off correctly; button was still visible"],
+      ["+", "Added Crosshair toggle"],
+      ["+", "Added Rain Sound Volume slider to weathers mod"],
+      ["!", "Fixed Jump Height not working"],
+      ["+", "Added Enable Shiftlock toggle"],
+      ["-", "Removed Others Uv Stats toggle in display; was not useful at all"],
+      ["+", "Added Auto Escape Trap toggle"],
+      ["+", "Added Displays and Settings group tabs"],
+      ["+", "Added custom label color pickers"],
+      ["~", "Timer and Power now use formatted numbers instead of only seconds"],
+      ["*", "Improved Speed Bypass"],
+      ["+", "Added Rainbow ESP colors"],
+      ["+", "Added custom ESP color pickers"],
+      ["+", "Added Mouse wheel changes hold distance when controlling objects"],
+      ["+", "Added ESPs and Settings group tabs"],
+      ["!", "Fixed objects that you drop kept sticking"],
+      ["~", "Context buttons now are optional"],
+      ["~", "Changed Changelog looks"]
+     ]
+    },
+    {
+     "name": "Monochrome",
+     "entries": [
+      ["+", "Added tab icons"],
+      ["+", "Added Halloween ESP"],
+      ["+", "Added ESP Text Size slider"],
+      ["+", "Added ESP Mode dropdown"],
+      ["+", "Added custom ESP color pickers"],
+      ["+", "Added Rainbow ESP colors"],
+      ["+", "Added ESPs and Settings group tabs"]
+     ]
+    },
+    {
+     "name": "3008",
+     "entries": [
+      ["i", "First release of the 3008 script"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v2.8",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["+", "Speed Bypass will now have different methods in the future"],
+      ["*", "More Misc improvements"],
+      ["+", "Added tooltips for features that might not be understandable"],
+      ["!", "Infinite Stamina, Infinite Night Vision and No Jump Cooldown now always work through respawns"],
+      ["!", "Field Of View in Default mode breaking Drawing API positions"],
+      ["+", "Toggles now have keybinds"],
+      ["+", "Added Keybinds tab"],
+      ["+", "Added Clock Time toggle"],
+      ["*", "Free Camera now stops character properly"]
+     ]
+    },
+    {
+     "name": "Monochrome",
+     "entries": [
+      ["+", "Script now loads faster"],
+      ["*", "Optimized ESPs"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v2.7",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["-", "Removed Loading screen"],
+      ["!", "Fixed bugs in Spectator, ESP Modes, etc"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v2.6",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["+", "Added DPI dropdown to scale the UI"],
+      ["*", "Toggle and slider saving no longer buggy"],
+      ["*", "Rewrite to Obsidian"],
+      ["-", "Removed custom UI"]
+     ]
+    },
+    {
+     "name": "Monochrome",
+     "entries": [
+      ["i", "Monochrome release"],
+      ["+", "Full Endless + Part 2 support"],
+      ["!", "Paired ESPs"],
+      ["!", "Fixed Player ESP not working on recently spawned players"],
+      ["!", "Fixed ESP Tracers dissapearing sometimes"],
+      ["!", "Fixed Load Config"],
+      ["+", "Added DPI dropdown to scale UI"],
+      ["+", "Rewrite to Obsidian"],
+      ["+", "Added Elevator ESP"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v2.5",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["!", "Feedback/Ban UI Scale fix"],
+      ["-", "Removed Information tab because it was useless"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v2.4",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["*", "Improved Speed Bypass"],
+      ["+", "Added ESP Mode dropdown"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v2.3",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["+", "Added Fps Mode dropdown"],
+      ["*", "Improved performance"],
+      ["+", "Added RakeWeather Mod button"],
+      ["+", "Added Mods tab"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v2.2",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["-", "Removed false kick positives"],
+      ["*", "Improved Get Radio"],
+      ["+", "Added Auto Supply Teleport toggle"],
+      ["+", "Added Auto Collect Item toggle"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v2.1",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["!", "Fixed Player ESP"],
+      ["!", "Fixed Auto Farm"],
+      ["*", "Improved Speed Bypass"],
+      ["+", "Added Context Button keybind"],
+      ["*", "Improved Instant Kill Rake"],
+      ["+", "Added Dash toggle"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v2.0",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["+", "Added Key System"],
+      ["*", "Improved drag inputs"],
+      ["*", "Improved button inputs"],
+      ["!", "Fixed Auto Heal"],
+      ["+", "Added Auto Farm toggle"],
+      ["~", "Reduced toggle cooldowns"],
+      ["+", "Added Highlight Spots toggle"],
+      ["!", "Fixed Player ESP"],
+      ["*", "Improved Sixth Sense gamepass"],
+      ["+", "Added Teleport Behind Rake slider"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v1.9",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["*", "Improved Instant Kill Rake"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v1.8",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["+", "Added More effects"],
+      ["*", "Improved Keep Backpack Enabled"],
+      ["+", "Added Sit toggle"],
+      ["+", "Added Freeze toggle"],
+      ["+", "Added Teleport To Last Died toggle"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v1.7",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["+", "Added Information tab"],
+      ["+", "Added Slope Angle toggle + slider"],
+      ["!", "Fixed Supply Drop ESP failing"],
+      ["*", "Improved Flare Gun teleportation"],
+      ["+", "Added Disable Downed Color toggle"],
+      ["+", "Added Disable Blur toggle"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v1.6",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["+", "Added Disable Conveyors toggle"],
+      ["*", "Improved No Player Collision"],
+      ["!", "Fixed a Scrap ESP bug"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v1.5",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["+", "Added more ESP options"],
+      ["*", "Improved Forcefield"],
+      ["+", "Added No Fall Animation toggle"],
+      ["+", "Added Keep Backpack Enabled toggle"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v1.4",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["+", "Added Keep Item On Spawn toggle"],
+      ["*", "Improved teleport bypass"],
+      ["!", "Fixed saving config not working"],
+      ["!", "Fixed a Night Vision bug"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v1.3",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["+", "Added Speed Bypass toggle"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v1.2",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["+", "Added Fly toggle"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v1.1",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["~", "Changed feedback link to built-in button"]
+     ]
+    }
+   ]
+  },
+  {
+   "version": "v1.0",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["i", "Your feedback will be appreciated"]
+     ]
+    }
+   ]
+  }
+ ]
+}
