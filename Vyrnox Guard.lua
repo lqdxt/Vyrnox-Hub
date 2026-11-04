@@ -3,7 +3,7 @@
  ------------
  if your executor does not support hooking it's own functions, this will not work
  place the loadstring:
- loadstring(game:HttpGet("https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/refs/heads/main/Vyrnox%20Guard.lua"))()
+ loadstring(game:HttpGet("https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/main/Vyrnox%20Guard.lua"))()
  in your executor's autoexec/Autoexecution folder so it runs on every game
  do NOT paste this entire file as you will miss updates
  should load before any other script has a chance to execute
@@ -35,6 +35,7 @@ local AddConsoleLine
 local TriggerFileScan
 local IsFileScanRunning
 local ShowThreatNotification
+local MarkStatsDirty
 
 if is_func_hooked == nil then
  local registry = setmetatable({}, { __mode = "k" })
@@ -412,17 +413,31 @@ end
 
 local ChangelogData = {
  {
+  version = "1.2",
+  date = "2026-11-03",
+  changes = {
+   "Other tiny changes. More animations.",
+   "Added \"Protect Clipboard\": warns when a script copies a link that looks like a fake Roblox site (roblox.com.bz, robIox.com, roblox-support.net...). Has a \"Block\" sub toggle (off by default) to stop the copy instead of just warning, and a \"Rate Limit\" sub toggle (on by default) that stops clipboard spam (more than 5 copies in 2 seconds).",
+   "Expandable toggles now have a caret next to the toggle pill. Click it to open or close the sub options. Right click and long press won't longer work.",
+   "Added \"Protect Chat\": blocks executor-made chat sends so a script can't spam chat as you. Needs Protect Metatable.",
+   "Protect Webhooks now covers far more than just discord: Telegram bots, Slack, Microsoft Teams/Power Automate, Google Chat, Guilded, etc.",
+   "Added \"Block Big Files\" sub toggle under Protect Filesystem: blocks writefile/appendfile when the resulting file would go over the size limit (10MB by default).",
+   "Added \"Whitelisted Links\": add any link or domain (like httpbin.org) with the + button and Vyrnox Guard removes all protections from it. Remove an entry with its x button.",
+   "Removed the command bar because it was just useless. The log, events and hook status functions are now buttons under the console.",
+  },
+ },
+ {
   version = "1.1",
   date = "2026-09-19",
   changes = {
-   "Fixed some bugs",
+   "Fixed some bugs.",
    "Fake IP: your real IP is swapped for a random IPv4/IPv6 address in outgoing request URLs, bodies, and headers.",
-   "Added a \"Block\" sub toggle under Protect Webhooks (on by default). Turning it off still detects and logs webhook exfiltration attempts. You can also pair it with Fake IP if its off",
-   "Better startup against tampering",
+   "Added a \"Block\" sub toggle under Protect Webhooks (on by default). Turning it off still detects and logs webhook exfiltration attempts. You can also pair it with Fake IP if its off.",
+   "Better startup against tampering.",
    "Added optional Cloud Reputation URL checking against a hosted lookup service (off by default).",
-   "Can now catch IP logger responses by their JSON shape (lat/long, ISP, ASN...) and by suspicious IP forwarding headers, not just blocklisted content",
-   "Toggles can now have expandable sub options (long press or right click a toggle)",
-   "Added a Changelog tab",
+   "Can now catch IP logger responses by their JSON shape (lat/long, ISP, ASN...) and by suspicious IP forwarding headers, not just blocklisted content.",
+   "Toggles can now have expandable sub options (long press or right click a toggle).",
+   "Added a Changelog tab.",
   },
  },
  {
@@ -437,6 +452,7 @@ local ChangelogData = {
 local BlockLog = {}
 local function LogBlock(reason, hookName, url)
  table.insert(BlockLog, { time = os.time(), reason = reason, hook = hookName, url = url })
+ if MarkStatsDirty then MarkStatsDirty() end
  if ShowThreatNotification then
   ShowThreatNotification(reason)
  end
@@ -446,6 +462,7 @@ local EventLog = {}
 local function LogEvent(kind, detail, severity)
  severity = severity or "warn"
  table.insert(EventLog, { time = os.time(), kind = kind, detail = detail, severity = severity })
+ if MarkStatsDirty then MarkStatsDirty() end
  if severity == "info" then
   Console("print", "[Event] " .. kind .. ": " .. tostring(detail))
  else
@@ -463,6 +480,7 @@ local Stats = {
 }
 local function CountHttpRequestSeen()
  Stats.HttpRequestsSeen = Stats.HttpRequestsSeen + 1
+ if MarkStatsDirty then MarkStatsDirty() end
 end
 
 local VyrnoxGuard = { Log = BlockLog, Events = EventLog, Stats = Stats }
@@ -509,9 +527,12 @@ local ProtectIP = true
 local ProtectWebSocket = true
 local ProtectDomains = true
 local ProtectFilesystem = true
+local BlockBigFiles = true
+local MaxWriteFileSize = 10 * 1024 * 1024
 local ProtectConsoleGui = true
 local ProtectFingerprint = true
 local ProtectTokens = true
+local BlockForcedMessages = true
 local ProtectCloudReputation = false
 local CRE = ""
 local FakeIPEnabled = false
@@ -585,6 +606,66 @@ function VyrnoxGuard.ToggleTokens(enabled)
  ProtectTokens = (enabled == true)
  NotifyToggleChange()
  return ProtectTokens
+end
+function VyrnoxGuard.ToggleForcedMessages(enabled)
+ BlockForcedMessages = (enabled == true)
+ NotifyToggleChange()
+ return BlockForcedMessages
+end
+VyrnoxGuard.ProtectClipboard = true
+VyrnoxGuard.BlockClipboard = false
+VyrnoxGuard.RateLimitClipboard = true
+function VyrnoxGuard.ToggleClipboardRateLimit(enabled)
+ VyrnoxGuard.RateLimitClipboard = (enabled == true)
+ NotifyToggleChange()
+ return VyrnoxGuard.RateLimitClipboard
+end
+function VyrnoxGuard.ToggleClipboard(enabled)
+ VyrnoxGuard.ProtectClipboard = (enabled == true)
+ NotifyToggleChange()
+ return VyrnoxGuard.ProtectClipboard
+end
+function VyrnoxGuard.ToggleClipboardBlock(enabled)
+ VyrnoxGuard.BlockClipboard = (enabled == true)
+ NotifyToggleChange()
+ return VyrnoxGuard.BlockClipboard
+end
+function VyrnoxGuard.ToggleBigFiles(enabled)
+ BlockBigFiles = (enabled == true)
+ NotifyToggleChange()
+ return BlockBigFiles
+end
+function VyrnoxGuard.SetMaxFileSizeMB(mb)
+ mb = tonumber(mb)
+ if not mb or mb <= 0 or mb > 1024 then
+  Console("warn", "Max file size must be a number between 0 and 1024 (MB).")
+  return false
+ end
+ MaxWriteFileSize = math.floor(mb * 1024 * 1024)
+ NotifyToggleChange()
+ return true
+end
+VyrnoxGuard.WhitelistedLinks = {}
+function VyrnoxGuard.AddWhitelistedLink(raw)
+ local entry = { raw = (typeof(raw) == "string") and raw:match("^%s*(.-)%s*$") or "" }
+ table.insert(VyrnoxGuard.WhitelistedLinks, entry)
+ NotifyToggleChange()
+ return entry
+end
+function VyrnoxGuard.SetWhitelistedLink(entry, raw)
+ if typeof(entry) ~= "table" then return false end
+ entry.raw = (typeof(raw) == "string") and raw:match("^%s*(.-)%s*$") or ""
+ NotifyToggleChange()
+ return true
+end
+function VyrnoxGuard.RemoveWhitelistedLink(entry)
+ for i, e in ipairs(VyrnoxGuard.WhitelistedLinks) do
+  if e == entry then
+   table.remove(VyrnoxGuard.WhitelistedLinks, i)
+   break
+  end
+ end
+ NotifyToggleChange()
 end
 function VyrnoxGuard.ToggleCloudReputation(enabled)
  ProtectCloudReputation = (enabled == true)
@@ -669,76 +750,176 @@ function VyrnoxGuard.ToggleMetatable(enabled)
  return ProtectMetatable
 end
 
-local ConfigFolder = "VyrnoxGuard"
-local ConfigPath = "VyrnoxGuard/config.json"
+local ConfigRoot = "Vyrnox"
+local ConfigFolder = "Vyrnox/Guard"
+local ConfigPath = "Vyrnox/Guard/config.json"
 
-local function BuildStatsSummaryText()
- local reasonCounts = {}
- local reasonOrder = {}
- for _, entry in ipairs(BlockLog) do
-  local r = entry.reason or "Unknown"
-  if not reasonCounts[r] then
-   reasonCounts[r] = 0
-   table.insert(reasonOrder, r)
+local function EnsureConfigFolders()
+ if typeof(makefolder) ~= "function" or typeof(isfolder) ~= "function" then return end
+ pcall(function()
+  if not isfolder(ConfigRoot) then
+   makefolder(ConfigRoot)
   end
-  reasonCounts[r] = reasonCounts[r] + 1
- end
-
- local lines = {}
- table.insert(lines, "Vyrnox Guard, Stats Snapshot")
- table.insert(lines, "Generated: " .. os.date("%Y-%m-%d %H:%M:%S"))
- table.insert(lines, "Session started: " .. os.date("%Y-%m-%d %H:%M:%S", Stats.SessionStart))
- table.insert(lines, "")
- table.insert(lines, "Threats blocked: " .. #BlockLog)
- table.insert(lines, "Flagged events: " .. #EventLog)
- table.insert(lines, "HTTP requests seen: " .. Stats.HttpRequestsSeen)
- table.insert(lines, "")
- table.insert(lines, "Blocked by reason:")
- if #reasonOrder == 0 then
-  table.insert(lines, "  (none)")
- else
-  for _, r in ipairs(reasonOrder) do
-   table.insert(lines, string.format("  %d  %s", reasonCounts[r], r))
-  end
- end
- return table.concat(lines, "\n")
-end
-
-local function SaveStats()
- if typeof(writefile) ~= "function" then
-  Console("warn", "writefile is not supported in this environment, cannot save stats.")
-  return false
- end
- local ok = pcall(function()
-  if typeof(makefolder) == "function" and typeof(isfolder) == "function" and not isfolder(ConfigFolder) then
+  if not isfolder(ConfigFolder) then
    makefolder(ConfigFolder)
   end
-  writefile("VyrnoxGuard/stats_" .. os.date("%Y%m%d_%H%M%S") .. ".txt", BuildStatsSummaryText())
  end)
- if ok then
-  Console("print", "Saved stats snapshot to VyrnoxGuard/ folder.")
- else
-  Console("warn", "Failed to save stats snapshot.")
- end
- return ok
 end
-VyrnoxGuard.SaveStats = SaveStats
+
+EnsureConfigFolders()
+
+local StatsStore = {
+ Path = ConfigFolder .. "/stats.json",
+ MaxReasons = 200,
+ Dirty = false,
+}
+
+local function NewSavedStats()
+ return { Blocked = 0, Events = 0, Http = 0, Since = os.time(), Reasons = {}, ReasonOrder = {} }
+end
+StatsStore.Saved = NewSavedStats()
+
+function StatsStore.GetTotals()
+ local saved = StatsStore.Saved
+ local reasons, order = {}, {}
+ for _, r in ipairs(saved.ReasonOrder) do
+  reasons[r] = saved.Reasons[r]
+  table.insert(order, r)
+ end
+ for _, entry in ipairs(BlockLog) do
+  local r = entry.reason or "Unknown"
+  if not reasons[r] then
+   reasons[r] = 0
+   table.insert(order, r)
+  end
+  reasons[r] = reasons[r] + 1
+ end
+ return {
+  Blocked = saved.Blocked + #BlockLog,
+  Events = saved.Events + #EventLog,
+  Http = saved.Http + Stats.HttpRequestsSeen,
+  Since = saved.Since,
+  Reasons = reasons,
+  ReasonOrder = order,
+ }
+end
+
+function StatsStore.Persist()
+ if typeof(writefile) ~= "function" then return false end
+ local totals = StatsStore.GetTotals()
+ local list, other = {}, 0
+ for i, r in ipairs(totals.ReasonOrder) do
+  if i <= StatsStore.MaxReasons then
+   table.insert(list, { reason = r, count = totals.Reasons[r] })
+  else
+   other = other + totals.Reasons[r]
+  end
+ end
+ if other > 0 then
+  table.insert(list, { reason = "(other reasons)", count = other })
+ end
+ return (pcall(function()
+  EnsureConfigFolders()
+  writefile(StatsStore.Path, game:GetService("HttpService"):JSONEncode({
+   Blocked = totals.Blocked,
+   Events = totals.Events,
+   Http = totals.Http,
+   Since = totals.Since,
+   Reasons = list,
+  }))
+ end))
+end
+
+function StatsStore.Load()
+ if typeof(readfile) ~= "function" or typeof(isfile) ~= "function" then return end
+ local ok, data = pcall(function()
+  if not isfile(StatsStore.Path) then return nil end
+  return game:GetService("HttpService"):JSONDecode(readfile(StatsStore.Path))
+ end)
+ if not ok or typeof(data) ~= "table" then return end
+
+ local saved = NewSavedStats()
+ saved.Blocked = math.max(0, math.floor(tonumber(data.Blocked) or 0))
+ saved.Events = math.max(0, math.floor(tonumber(data.Events) or 0))
+ saved.Http = math.max(0, math.floor(tonumber(data.Http) or 0))
+ saved.Since = tonumber(data.Since) or saved.Since
+ if typeof(data.Reasons) == "table" then
+  for _, e in ipairs(data.Reasons) do
+   if typeof(e) == "table" and typeof(e.reason) == "string" and tonumber(e.count) then
+    if not saved.Reasons[e.reason] then
+     saved.Reasons[e.reason] = 0
+     table.insert(saved.ReasonOrder, e.reason)
+    end
+    saved.Reasons[e.reason] = saved.Reasons[e.reason] + math.floor(tonumber(e.count))
+   end
+  end
+ end
+ StatsStore.Saved = saved
+end
+
+function StatsStore.Reset()
+ table.clear(BlockLog)
+ table.clear(EventLog)
+ Stats.HttpRequestsSeen = 0
+ StatsStore.Saved = NewSavedStats()
+ StatsStore.Dirty = false
+ local ok = StatsStore.Persist()
+ if typeof(writefile) ~= "function" or ok then
+  Console("print", "Stats reset.")
+  return true
+ end
+ Console("warn", "Stats were reset for this session but the saved stats file could not be updated.")
+ return false
+end
+
+MarkStatsDirty = function()
+ StatsStore.Dirty = true
+end
+
+StatsStore.Load()
+if typeof(writefile) ~= "function" then
+ Console("warn", "writefile is not supported in this environment, stats will not persist between sessions.")
+end
+
+spawn_func(function()
+ while true do
+  wait_func(5)
+  if StatsStore.Dirty then
+   StatsStore.Dirty = false
+   StatsStore.Persist()
+  end
+ end
+end)
+
+VyrnoxGuard.SaveStats = StatsStore.Persist
+VyrnoxGuard.ResetStats = StatsStore.Reset
 
 local function SaveConfig()
  if typeof(writefile) ~= "function" then return end
  local ok = pcall(function()
-  if typeof(makefolder) == "function" and typeof(isfolder) == "function" and not isfolder(ConfigFolder) then
-   makefolder(ConfigFolder)
-  end
+  EnsureConfigFolders()
   local data = {
    ProtectCookies = ProtectCookies,
    ProtectIP = ProtectIP,
    ProtectWebSocket = ProtectWebSocket,
    ProtectDomains = ProtectDomains,
    ProtectFilesystem = ProtectFilesystem,
+   BlockBigFiles = BlockBigFiles,
+   MaxFileSizeMB = MaxWriteFileSize / (1024 * 1024),
+   WhitelistedLinks = (function()
+    local out = {}
+    for _, e in ipairs(VyrnoxGuard.WhitelistedLinks) do
+     if e.raw ~= "" then table.insert(out, e.raw) end
+    end
+    return out
+   end)(),
    ProtectConsoleGui = ProtectConsoleGui,
    ProtectFingerprint = ProtectFingerprint,
    ProtectTokens = ProtectTokens,
+   BlockForcedMessages = BlockForcedMessages,
+   ProtectClipboard = VyrnoxGuard.ProtectClipboard,
+   BlockClipboard = VyrnoxGuard.BlockClipboard,
+   RateLimitClipboard = VyrnoxGuard.RateLimitClipboard,
    BlockWebhooks = BlockWebhooks,
    ProtectCloudReputation = ProtectCloudReputation,
    FakeIPEnabled = FakeIPEnabled,
@@ -753,6 +934,7 @@ local function SaveConfig()
 end
 
 local function LoadConfig()
+ EnsureConfigFolders()
  if typeof(readfile) ~= "function" or typeof(isfile) ~= "function" then return end
  local ok, result = pcall(function()
   if not isfile(ConfigPath) then return nil end
@@ -765,9 +947,22 @@ local function LoadConfig()
  if typeof(result.ProtectWebSocket) == "boolean" then VyrnoxGuard.ToggleWebSocket(result.ProtectWebSocket) end
  if typeof(result.ProtectDomains) == "boolean" then VyrnoxGuard.ToggleDomains(result.ProtectDomains) end
  if typeof(result.ProtectFilesystem) == "boolean" then VyrnoxGuard.ToggleFilesystem(result.ProtectFilesystem) end
+ if typeof(result.BlockBigFiles) == "boolean" then VyrnoxGuard.ToggleBigFiles(result.BlockBigFiles) end
+ if typeof(result.MaxFileSizeMB) == "number" then VyrnoxGuard.SetMaxFileSizeMB(result.MaxFileSizeMB) end
+ if typeof(result.WhitelistedLinks) == "table" then
+  for _, raw in ipairs(result.WhitelistedLinks) do
+   if typeof(raw) == "string" and raw ~= "" then
+    table.insert(VyrnoxGuard.WhitelistedLinks, { raw = raw })
+   end
+  end
+ end
  if typeof(result.ProtectConsoleGui) == "boolean" then VyrnoxGuard.ToggleConsoleGui(result.ProtectConsoleGui) end
  if typeof(result.ProtectFingerprint) == "boolean" then VyrnoxGuard.ToggleFingerprint(result.ProtectFingerprint) end
  if typeof(result.ProtectTokens) == "boolean" then VyrnoxGuard.ToggleTokens(result.ProtectTokens) end
+ if typeof(result.BlockForcedMessages) == "boolean" then VyrnoxGuard.ToggleForcedMessages(result.BlockForcedMessages) end
+ if typeof(result.ProtectClipboard) == "boolean" then VyrnoxGuard.ToggleClipboard(result.ProtectClipboard) end
+ if typeof(result.BlockClipboard) == "boolean" then VyrnoxGuard.ToggleClipboardBlock(result.BlockClipboard) end
+ if typeof(result.RateLimitClipboard) == "boolean" then VyrnoxGuard.ToggleClipboardRateLimit(result.RateLimitClipboard) end
  if typeof(result.BlockWebhooks) == "boolean" then VyrnoxGuard.ToggleWebhooks(result.BlockWebhooks) end
  if typeof(result.CRE) == "string" then VyrnoxGuard.SetCloudReputationEndpoint(result.CRE) end
  if typeof(result.ProtectCloudReputation) == "boolean" then VyrnoxGuard.ToggleCloudReputation(result.ProtectCloudReputation) end
@@ -783,6 +978,7 @@ VyrnoxGuard.OnToggleChange(SaveConfig)
 spawn_func(function()
  local ok_ui, ui_err = pcall(function()
   local TweenService = game:GetService("TweenService")
+  local GuiService = game:GetService("GuiService")
   local Players = game:GetService("Players")
   local player = Players.LocalPlayer or Players.PlayerAdded:Wait()
   local ExecutorGui = typeof(gethui) == "function" and gethui() or nil
@@ -1287,10 +1483,19 @@ spawn_func(function()
   local statsTabBtn = BuildTabButton("Stats", 2)
   local changelogTabBtn = BuildTabButton("Changelog", 3)
 
+  local panelHost = Instance.new("Frame")
+  panelHost.Name = "PanelHost"
+  panelHost.Position = UDim2.new(0, 12, 0, 42)
+  panelHost.Size = UDim2.new(0, 220, 1, -54)
+  panelHost.BackgroundTransparency = 1
+  panelHost.BorderSizePixel = 0
+  panelHost.ClipsDescendants = true
+  panelHost.Parent = body
+
   local leftPanel = Instance.new("ScrollingFrame")
   leftPanel.Name = "LeftPanel"
-  leftPanel.Position = UDim2.new(0, 12, 0, 42)
-  leftPanel.Size = UDim2.new(0, 220, 1, -54)
+  leftPanel.Position = UDim2.new(0, 0, 0, 0)
+  leftPanel.Size = UDim2.new(1, 0, 1, 0)
   leftPanel.BackgroundColor3 = PANEL_DARK
   leftPanel.BackgroundTransparency = 0.2
   leftPanel.BorderSizePixel = 0
@@ -1298,7 +1503,7 @@ spawn_func(function()
   leftPanel.ScrollBarImageColor3 = TEXT_DIM
   leftPanel.AutomaticCanvasSize = Enum.AutomaticSize.Y
   leftPanel.CanvasSize = UDim2.new(0, 0, 0, 0)
-  leftPanel.Parent = body
+  leftPanel.Parent = panelHost
   NewCorner(10, leftPanel)
 
   local leftLayout = Instance.new("UIListLayout")
@@ -1315,8 +1520,8 @@ spawn_func(function()
 
   local statsPanel = Instance.new("ScrollingFrame")
   statsPanel.Name = "StatsPanel"
-  statsPanel.Position = UDim2.new(0, 12, 0, 42)
-  statsPanel.Size = UDim2.new(0, 220, 1, -54)
+  statsPanel.Position = UDim2.new(0, 0, 0, 0)
+  statsPanel.Size = UDim2.new(1, 0, 1, 0)
   statsPanel.BackgroundColor3 = PANEL_DARK
   statsPanel.BackgroundTransparency = 0.2
   statsPanel.BorderSizePixel = 0
@@ -1325,7 +1530,7 @@ spawn_func(function()
   statsPanel.AutomaticCanvasSize = Enum.AutomaticSize.Y
   statsPanel.CanvasSize = UDim2.new(0, 0, 0, 0)
   statsPanel.Visible = false
-  statsPanel.Parent = body
+  statsPanel.Parent = panelHost
   NewCorner(10, statsPanel)
 
   local statsLayout = Instance.new("UIListLayout")
@@ -1342,8 +1547,8 @@ spawn_func(function()
 
   local changelogPanel = Instance.new("ScrollingFrame")
   changelogPanel.Name = "ChangelogPanel"
-  changelogPanel.Position = UDim2.new(0, 12, 0, 42)
-  changelogPanel.Size = UDim2.new(0, 220, 1, -54)
+  changelogPanel.Position = UDim2.new(0, 0, 0, 0)
+  changelogPanel.Size = UDim2.new(1, 0, 1, 0)
   changelogPanel.BackgroundColor3 = PANEL_DARK
   changelogPanel.BackgroundTransparency = 0.2
   changelogPanel.BorderSizePixel = 0
@@ -1352,7 +1557,7 @@ spawn_func(function()
   changelogPanel.AutomaticCanvasSize = Enum.AutomaticSize.Y
   changelogPanel.CanvasSize = UDim2.new(0, 0, 0, 0)
   changelogPanel.Visible = false
-  changelogPanel.Parent = body
+  changelogPanel.Parent = panelHost
   NewCorner(10, changelogPanel)
 
   local changelogLayout = Instance.new("UIListLayout")
@@ -1431,17 +1636,57 @@ spawn_func(function()
 
   local RefreshStatsPanel
 
+  local TAB_ORDER = { toggles = 1, stats = 2, changelog = 3 }
+  local tabPanels = { toggles = leftPanel, stats = statsPanel, changelog = changelogPanel }
+  local currentTab = "toggles"
+  local slideTweens = {}
+  local slideGen = 0
+  local SLIDE_INFO = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
   local function SwitchTab(tab)
-   local showStats = (tab == "stats")
-   local showChangelog = (tab == "changelog")
-   local showHome = not showStats and not showChangelog
-   leftPanel.Visible = showHome
-   statsPanel.Visible = showStats
-   changelogPanel.Visible = showChangelog
-   SetTabButtonActive(togglesTabBtn, showHome)
-   SetTabButtonActive(statsTabBtn, showStats)
-   SetTabButtonActive(changelogTabBtn, showChangelog)
-   if showStats and RefreshStatsPanel then
+   if not tabPanels[tab] then tab = "toggles" end
+   if tab == currentTab then return end
+
+   local fromTab = currentTab
+   currentTab = tab
+   slideGen = slideGen + 1
+   local myGen = slideGen
+
+   for _, tw in ipairs(slideTweens) do tw:Cancel() end
+   slideTweens = {}
+
+   SetTabButtonActive(togglesTabBtn, tab == "toggles")
+   SetTabButtonActive(statsTabBtn, tab == "stats")
+   SetTabButtonActive(changelogTabBtn, tab == "changelog")
+
+   local direction = TAB_ORDER[tab] > TAB_ORDER[fromTab] and 1 or -1
+   local fromPanel = tabPanels[fromTab]
+   local toPanel = tabPanels[tab]
+
+   for name, panel in pairs(tabPanels) do
+    if panel ~= fromPanel and panel ~= toPanel then
+     panel.Visible = false
+     panel.Position = UDim2.new(0, 0, 0, 0)
+    end
+   end
+
+   toPanel.Position = UDim2.new(direction, 0, 0, 0)
+   toPanel.Visible = true
+
+   local outTween = TweenService:Create(fromPanel, SLIDE_INFO, { Position = UDim2.new(-direction, 0, 0, 0) })
+   local inTween = TweenService:Create(toPanel, SLIDE_INFO, { Position = UDim2.new(0, 0, 0, 0) })
+   slideTweens = { outTween, inTween }
+
+   outTween.Completed:Connect(function(state)
+    if myGen ~= slideGen then return end
+    fromPanel.Visible = false
+    fromPanel.Position = UDim2.new(0, 0, 0, 0)
+   end)
+
+   outTween:Play()
+   inTween:Play()
+
+   if tab == "stats" and RefreshStatsPanel then
     RefreshStatsPanel()
    end
   end
@@ -1518,135 +1763,49 @@ spawn_func(function()
    line.LayoutOrder = consoleLineCount
   end
 
-  local commandBar = Instance.new("Frame")
-  commandBar.Name = "CommandBar"
-  commandBar.Position = UDim2.new(0, 8, 1, -40)
-  commandBar.Size = UDim2.new(1, -16, 0, 32)
-  commandBar.BackgroundColor3 = BG_DARK
-  commandBar.BackgroundTransparency = 0.15
-  commandBar.BorderSizePixel = 0
-  commandBar.Parent = rightPanel
-  NewCorner(8, commandBar)
-  NewStroke(commandBar, Color3.fromRGB(255, 255, 255), 1, 0.88)
+  local actionBar = Instance.new("Frame")
+  actionBar.Name = "ActionBar"
+  actionBar.Position = UDim2.new(0, 8, 1, -40)
+  actionBar.Size = UDim2.new(1, -16, 0, 32)
+  actionBar.BackgroundTransparency = 1
+  actionBar.Parent = rightPanel
 
-  local promptLabel = Instance.new("TextLabel")
-  promptLabel.BackgroundTransparency = 1
-  promptLabel.Position = UDim2.new(0, 10, 0, 0)
-  promptLabel.Size = UDim2.new(0, 14, 1, 0)
-  promptLabel.Font = Enum.Font.Code
-  promptLabel.TextSize = 14
-  promptLabel.TextColor3 = CALM
-  promptLabel.TextXAlignment = Enum.TextXAlignment.Left
-  promptLabel.Text = ">"
-  promptLabel.Parent = commandBar
-
-  local commandBox = Instance.new("TextBox")
-  commandBox.Name = "CommandInput"
-  commandBox.BackgroundTransparency = 1
-  commandBox.Position = UDim2.new(0, 26, 0, 0)
-  commandBox.Size = UDim2.new(1, -34, 1, 0)
-  commandBox.Font = Enum.Font.Code
-  commandBox.TextSize = 13
-  commandBox.TextColor3 = TEXT_LIGHT
-  commandBox.PlaceholderText = "help"
-  commandBox.PlaceholderColor3 = TEXT_DIM
-  commandBox.TextXAlignment = Enum.TextXAlignment.Left
-  commandBox.ClearTextOnFocus = false
-  commandBox.Text = ""
-  commandBox.Parent = commandBar
-
-  local Commands = {
-   PrintLog = { get = function() return VyrnoxGuard.PrintLog end, help = "PrintLog() - list blocked requests" },
-   PrintEvents = { get = function() return VyrnoxGuard.PrintEvents end, help = "PrintEvents() - list flagged activity" },
-   RunFileScan = { get = function() return VyrnoxGuard.RunFileScan end, help = "RunFileScan() - scan workspace files now" },
-   ToggleWebhooks = { get = function() return VyrnoxGuard.ToggleWebhooks end, help = "ToggleWebhooks(true/false)" },
-   ToggleCookies = { get = function() return VyrnoxGuard.ToggleCookies end, help = "ToggleCookies(true/false)" },
-   ToggleIP = { get = function() return VyrnoxGuard.ToggleIP end, help = "ToggleIP(true/false)" },
-   ToggleWebSocket = { get = function() return VyrnoxGuard.ToggleWebSocket end, help = "ToggleWebSocket(true/false)" },
-   ToggleDomains = { get = function() return VyrnoxGuard.ToggleDomains end, help = "ToggleDomains(true/false)" },
-   ToggleFilesystem = { get = function() return VyrnoxGuard.ToggleFilesystem end, help = "ToggleFilesystem(true/false)" },
-   ToggleConsoleGui = { get = function() return VyrnoxGuard.ToggleConsoleGui end, help = "ToggleConsoleGui(true/false)" },
-   ToggleFingerprint = { get = function() return VyrnoxGuard.ToggleFingerprint end, help = "ToggleFingerprint(true/false)" },
-   ToggleTokens = { get = function() return VyrnoxGuard.ToggleTokens end, help = "ToggleTokens(true/false)" },
-   ToggleMetatable = { get = function() return VyrnoxGuard.ToggleMetatable end, help = "ToggleMetatable(true/false) - __namecall/__newindex hooks (auto-disabled if anti-cheat detected)" },
-   ToggleFakeIP = { get = function() return VyrnoxGuard.ToggleFakeIP end, help = "ToggleFakeIP(true/false) - swap your real IP for a decoy instead of blocking" },
-   ToggleWebhookBlock = { get = function() return VyrnoxGuard.ToggleWebhookBlock end, help = "ToggleWebhookBlock(true/false) - off warns but lets webhook requests through" },
-   ToggleCloudReputation = { get = function() return VyrnoxGuard.ToggleCloudReputation end, help = "ToggleCloudReputation(true/false) - check borderline URLs against your reputation worker" },
-   SetCloudReputationEndpoint = { get = function() return VyrnoxGuard.SetCloudReputationEndpoint end, help = "SetCloudReputationEndpoint(\"url\", \"key\") - point at your deployed reputation worker" },
-   PrintHookStatus = { get = function() return VyrnoxGuard.PrintHookStatus end, help = "PrintHookStatus() - check if hooks are still intact" },
+  local actionDefs = {
+   { text = "Blocked Log", run = function() VyrnoxGuard.PrintLog() end },
+   { text = "Events", run = function() VyrnoxGuard.PrintEvents() end },
+   { text = "Hook Status", run = function() VyrnoxGuard.PrintHookStatus() end },
   }
 
-  local function ParseArgs(argStr)
-   local args = {}
-   if not argStr or argStr:match("^%s*$") then return args end
-   for token in argStr:gmatch("[^,]+") do
-    token = token:match("^%s*(.-)%s*$")
-    if token == "true" then
-     table.insert(args, true)
-    elseif token == "false" then
-     table.insert(args, false)
-    elseif token == "nil" then
-     table.insert(args, nil)
-    elseif tonumber(token) then
-     table.insert(args, tonumber(token))
-    else
-     local unquoted = token:match('^"(.*)"$') or token:match("^'(.*)'$")
-     table.insert(args, unquoted or token)
-    end
-   end
-   return args
-  end
+  for i, def in ipairs(actionDefs) do
+   local btn = Instance.new("TextButton")
+   btn.Name = "Action" .. i
+   btn.AutoButtonColor = false
+   btn.Size = UDim2.new(1 / #actionDefs, -4, 1, 0)
+   btn.Position = UDim2.new((i - 1) / #actionDefs, (i == 1) and 0 or 2, 0, 0)
+   btn.BackgroundColor3 = BG_DARK
+   btn.BackgroundTransparency = 0.15
+   btn.BorderSizePixel = 0
+   btn.Font = Enum.Font.GothamMedium
+   btn.TextSize = 12
+   btn.TextColor3 = TEXT_LIGHT
+   btn.Text = def.text
+   btn.Parent = actionBar
+   NewCorner(8, btn)
+   NewStroke(btn, Color3.fromRGB(255, 255, 255), 1, 0.88)
 
-  local function RunCommand(raw)
-   local input = raw:match("^%s*(.-)%s*$")
-   if input == "" then return end
-
-   AddConsoleLine("print", "> " .. input)
-
-   if input == "help" then
-    for name, entry in pairs(Commands) do
-     Console("print", "  " .. entry.help)
-    end
-    return
-   end
-
-   local name, argStr = input:match("^([%a_][%w_]*)%s*%(?(.-)%)?$")
-   if not name then
-    Console("warn", "Couldn't parse that. Type 'help' for a list of commands.")
-    return
-   end
-
-   local entry = Commands[name]
-   if not entry then
-    Console("warn", "Unknown command: " .. tostring(name) .. ", type 'help' for a list.")
-    return
-   end
-
-   local fn = entry.get()
-   if typeof(fn) ~= "function" then
-    Console("warn", name .. " is not available yet, try again in a moment.")
-    return
-   end
-
-   local args = ParseArgs(argStr)
-   local ok, result = pcall(fn, table.unpack(args))
-   if not ok then
-    Console("warn", "Error running " .. name .. ": " .. tostring(result))
-   elseif result ~= nil then
-    Console("print", "-> " .. tostring(result))
-   end
-  end
-
-  commandBox.FocusLost:Connect(function(enterPressed)
-   if not enterPressed then return end
-   local text = commandBox.Text
-   commandBox.Text = ""
-   RunCommand(text)
-   spawn_func(function()
-    wait_func()
-    commandBox:CaptureFocus()
+   btn.MouseEnter:Connect(function()
+    TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = CALM:Lerp(BG_DARK, 0.7) }):Play()
    end)
-  end)
+   btn.MouseLeave:Connect(function()
+    TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = BG_DARK }):Play()
+   end)
+   btn.MouseButton1Click:Connect(function()
+    local ok, err = pcall(def.run)
+    if not ok then
+     Console("warn", "Error running " .. def.text .. ": " .. tostring(err))
+    end
+   end)
+  end
 
   local function ApplyTheme(fraction)
    local base = RED:Lerp(CALM, fraction)
@@ -1732,8 +1891,9 @@ spawn_func(function()
 
    local camera = workspace.CurrentCamera
    local vpSize = (camera and camera.ViewportSize) or Vector2.new(1920, 1080)
-   local x = math.clamp(screenPos.X, 120, vpSize.X - 120)
-   local y = math.max(screenPos.Y - 14, 60)
+   local inset = ScreenGui.IgnoreGuiInset and GuiService:GetGuiInset() or Vector2.zero
+   local x = math.clamp(screenPos.X + inset.X, 120, vpSize.X - 120)
+   local y = math.max(screenPos.Y + inset.Y - 14, 60)
 
    tooltip.Position = UDim2.new(0, x, 0, y)
    tooltip.Visible = true
@@ -1802,7 +1962,23 @@ spawn_func(function()
     get = function()
      return ProtectFilesystem
     end,
-    set = VyrnoxGuard.ToggleFilesystem
+    set = VyrnoxGuard.ToggleFilesystem,
+    subToggles = {
+     {
+      label = "Block Big Files", desc = "Blocks writefile/appendfile when the resulting file would be over 10MB (disk-filling attacks).",
+      get = function()
+       return BlockBigFiles
+      end,
+      set = VyrnoxGuard.ToggleBigFiles
+     },
+     {
+      kind = "textbox", label = "Max Size (MB)", desc = "Largest file a write may reach before it's blocked.", boxWidth = 64, placeholder = "10",
+      get = function()
+       return string.format("%g", MaxWriteFileSize / (1024 * 1024))
+      end,
+      set = VyrnoxGuard.SetMaxFileSizeMB
+     },
+    },
    },
    {
     label = "Protect Console/GUI", desc = "Redacts sensitive data before it can be printed to console or shown in a GUI text label.",
@@ -1826,6 +2002,36 @@ spawn_func(function()
     set = VyrnoxGuard.ToggleTokens
    },
    {
+    label = "Protect Clipboard", desc = "Hooks setclipboard and its variants (toclipboard, syn.write_clipboard...) and warns when a script copies a link that looks like a fake Roblox site (roblox.com.bz, robIox.com...). Also rate limits clipboard spam.",
+    get = function()
+     return VyrnoxGuard.ProtectClipboard
+    end,
+    set = VyrnoxGuard.ToggleClipboard,
+    subToggles = {
+     {
+      label = "Block", desc = "On: stops the copy entirely. Off: only warns and logs, the text is still copied.",
+      get = function()
+       return VyrnoxGuard.BlockClipboard
+      end,
+      set = VyrnoxGuard.ToggleClipboardBlock
+     },
+     {
+      label = "Rate Limit", desc = "Drops clipboard writes from scripts that spam it (more than 5 copies in 2 seconds) so they can't flood or hijack your clipboard.",
+      get = function()
+       return VyrnoxGuard.RateLimitClipboard
+      end,
+      set = VyrnoxGuard.ToggleClipboardRateLimit
+     },
+    },
+   },
+   {
+    label = "Protect Chat", desc = "Blocks executor-made chat sends (TextChannel:SendAsync / legacy SayMessageRequest) so a script can't spam chat as you. Needs Protect Metatable.",
+    get = function()
+     return BlockForcedMessages
+    end,
+    set = VyrnoxGuard.ToggleForcedMessages
+   },
+   {
     label = "Protect Metatable", desc = "Hooks game's raw __namecall/__newindex (catches direct Instance:HttpGet() calls, pixel-buffer APIs, GUI leaks).",
     get = function()
      return ProtectMetatable
@@ -1833,7 +2039,7 @@ spawn_func(function()
     set = VyrnoxGuard.ToggleMetatable
    },
    {
-    label = "Protect Webhooks", desc = "Blocks requests to Discord/generic webhook endpoints and known paste/dump services.",
+    label = "Protect Webhooks", desc = "Blocks requests to webhook and exfiltration endpoints: Discord, Telegram, Slack, Teams, Zapier/Make/n8n, request catchers (webhook.site, Pipedream...), tunnels (ngrok...), paste/file upload endpoints, and form-to-email relays.",
     get = function()
      return BlockWebhooks
     end,
@@ -1849,24 +2055,44 @@ spawn_func(function()
     },
    },
    {
-    label = "Cloud Reputation", desc = "Sends borderline-suspicion URLs to a reputation-check server before blocking. Needs an endpoint configured and adds a network round-trip. Configure with SetCloudReputationEndpoint(\"url\", \"key\") in the console.",
+    label = "Cloud Reputation", desc = "Sends borderline-suspicion URLs to a reputation-check server before blocking. Needs an endpoint configured and adds a network round-trip. Set the worker link in this toggle's submenu.",
     get = function()
      return ProtectCloudReputation
     end,
-    set = VyrnoxGuard.ToggleCloudReputation
+    set = VyrnoxGuard.ToggleCloudReputation,
+    subToggles = {
+     {
+      kind = "textbox", label = "Worker Link", desc = "URL of your deployed reputation worker (https://...). Leave empty to clear.", boxWidth = 120, placeholder = "https://...",
+      get = function()
+       return CRE
+      end,
+      set = function(text)
+       if text ~= "" and not text:match("^https?://") then
+        Console("warn", "Worker link must start with http:// or https://")
+        return false
+       end
+       VyrnoxGuard.SetCloudReputationEndpoint(text)
+       return true
+      end
+     },
+    },
    },
   }
-  local totalToggles = #toggleDefs
+  local totalToggles = 0
+  for _, def in ipairs(toggleDefs) do
+   if def.kind ~= "textbox" then totalToggles = totalToggles + 1 end
+  end
 
   local function CountEnabled()
    local n = 0
    for _, def in ipairs(toggleDefs) do
-    if def.get() then n = n + 1 end
+    if def.kind ~= "textbox" and def.get() then n = n + 1 end
    end
    return n
   end
 
   local toggleVisuals = {}
+  local textboxVisuals = {}
 
   local function SyncToggleVisual(def, animate)
    local vis = toggleVisuals[def]
@@ -1887,13 +2113,18 @@ spawn_func(function()
 
   local function SyncAllToggleVisuals()
    for _, def in ipairs(toggleDefs) do
-    SyncToggleVisual(def, true)
+    if def.kind ~= "textbox" then SyncToggleVisual(def, true) end
+   end
+   for def, box in pairs(textboxVisuals) do
+    if not box:IsFocused() then
+     local okGet, value = pcall(def.get)
+     box.Text = okGet and tostring(value or "") or ""
+    end
    end
    ApplyTheme(CountEnabled() / totalToggles)
   end
 
   local TAP_MOVE_THRESHOLD = 8
-  local HOLD_DURATION = 0.5
 
   local function IsInsideBounds(position, guiObject)
    local absPos = guiObject.AbsolutePosition
@@ -1913,17 +2144,91 @@ spawn_func(function()
     Size = UDim2.new(1, 0, 0, targetHeight),
    })
    vis.tween:Play()
+
+   if vis.caret then
+    TweenService:Create(vis.caret, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+     Rotation = vis.expanded and 90 or 0,
+    }):Play()
+   end
   end
 
   local SUB_ON = UDim2.new(1, -16, 0.5, 0)
   local SUB_OFF = UDim2.new(0, 2, 0.5, 0)
 
+  local function BuildTextboxRow(def, order, parent, isSub)
+   local row = Instance.new("Frame")
+   if isSub then
+    row.Size = UDim2.new(1, -8, 0, 28)
+   else
+    row.Size = UDim2.new(1, 0, 0, 36)
+   end
+   row.BackgroundTransparency = 1
+   row.LayoutOrder = order
+   row.Parent = parent
+
+   local boxWidth = def.boxWidth or 110
+   if isSub then boxWidth = math.max(48, boxWidth - 24) end
+
+   local rowLabel = Instance.new("TextLabel")
+   rowLabel.BackgroundTransparency = 1
+   rowLabel.Size = UDim2.new(1, -(boxWidth + 8), 1, 0)
+   rowLabel.Font = isSub and Enum.Font.Gotham or Enum.Font.GothamMedium
+   rowLabel.TextSize = isSub and 12 or 13
+   rowLabel.TextXAlignment = isSub and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
+   rowLabel.TextColor3 = isSub and TEXT_DIM or TEXT_LIGHT
+   rowLabel.Text = def.label
+   rowLabel.Parent = row
+
+   local box = Instance.new("TextBox")
+   box.Name = "Input"
+   box.AnchorPoint = Vector2.new(1, 0.5)
+   box.Position = UDim2.new(1, 0, 0.5, 0)
+   box.Size = UDim2.new(0, boxWidth, 0, isSub and 20 or 22)
+   box.BackgroundColor3 = BG_DARK
+   box.BackgroundTransparency = 0.15
+   box.BorderSizePixel = 0
+   box.Font = Enum.Font.Code
+   box.TextSize = isSub and 11 or 12
+   box.TextColor3 = TEXT_LIGHT
+   box.PlaceholderText = def.placeholder or ""
+   box.PlaceholderColor3 = TEXT_DIM
+   box.TextXAlignment = Enum.TextXAlignment.Left
+   box.ClearTextOnFocus = false
+   box.ClipsDescendants = true
+   local okGet, initial = pcall(def.get)
+   box.Text = okGet and tostring(initial or "") or ""
+   box.Parent = row
+   NewCorner(6, box)
+   NewStroke(box, Color3.fromRGB(255, 255, 255), 1, 0.88)
+
+   local pad = Instance.new("UIPadding")
+   pad.PaddingLeft = UDim.new(0, 6)
+   pad.PaddingRight = UDim.new(0, 6)
+   pad.Parent = box
+
+   textboxVisuals[def] = box
+
+   box.FocusLost:Connect(function()
+    local text = box.Text:match("^%s*(.-)%s*$")
+    local okSet, accepted = pcall(def.set, text)
+    if not okSet or accepted == false then
+     if not okSet then Console("warn", "Couldn't apply " .. tostring(def.label) .. ": " .. tostring(accepted)) end
+    end
+    local okNow, current = pcall(def.get)
+    box.Text = okNow and tostring(current or "") or ""
+   end)
+
+   return row
+  end
+
   local function BuildSubToggleRow(subDef, order, parent)
+   if subDef.kind == "textbox" then
+    return BuildTextboxRow(subDef, order, parent, true)
+   end
    local subState = subDef.get and subDef.get() == true or (subDef.default == true)
 
    local subRow = Instance.new("Frame")
-   subRow.Size = UDim2.new(1, -20, 0, 28)
-   subRow.Position = UDim2.new(0, 20, 0, 0)
+   subRow.Size = UDim2.new(1, -8, 0, 28)
    subRow.BackgroundTransparency = 1
    subRow.LayoutOrder = order
    subRow.Parent = parent
@@ -1974,6 +2279,16 @@ spawn_func(function()
   end
 
   local function BuildToggleRow(def, order)
+   if def.kind == "textbox" then
+    local holder = Instance.new("Frame")
+    holder.Name = "TextboxGroup"
+    holder.Size = UDim2.new(1, 0, 0, 36)
+    holder.BackgroundTransparency = 1
+    holder.LayoutOrder = order * 10
+    holder.Parent = leftPanel
+    BuildTextboxRow(def, 1, holder, false)
+    return holder
+   end
    local group = Instance.new("Frame")
    group.Name = "ToggleGroup"
    group.Size = UDim2.new(1, 0, 0, 0)
@@ -1993,40 +2308,24 @@ spawn_func(function()
    row.LayoutOrder = 1
    row.Parent = group
 
+   local hasSubs = def.subToggles ~= nil and #def.subToggles > 0
+   local rightInset = hasSubs and 22 or 0
+
    local infoZone = Instance.new("TextButton")
    infoZone.Name = "InfoZone"
    infoZone.Text = ""
    infoZone.AutoButtonColor = false
    infoZone.BackgroundTransparency = 1
-   infoZone.Size = UDim2.new(1, -56, 1, 0)
+   infoZone.Size = UDim2.new(1, -(56 + rightInset), 1, 0)
    infoZone.Parent = row
 
    local isPressed = false
    local startPosition = Vector2.zero
-   local longPressFired = false
-   local pressGen = 0
 
    infoZone.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
      isPressed = true
-     longPressFired = false
      startPosition = Vector2.new(input.Position.X, input.Position.Y)
-
-     if input.UserInputType == Enum.UserInputType.Touch then
-      pressGen = pressGen + 1
-      local myGen = pressGen
-      delay_func(HOLD_DURATION, function()
-       if myGen ~= pressGen or not isPressed then return end
-       local current = Vector2.new(input.Position.X, input.Position.Y)
-       if (current - startPosition).Magnitude <= TAP_MOVE_THRESHOLD then
-        longPressFired = true
-        ToggleSubmenu(def)
-       end
-      end)
-     end
-
-    elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
-     ToggleSubmenu(def)
     end
    end)
 
@@ -2034,8 +2333,6 @@ spawn_func(function()
     if not isPressed then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
      isPressed = false
-     pressGen = pressGen + 1
-     if longPressFired then return end
      local endPosition = Vector2.new(input.Position.X, input.Position.Y)
      local dragDistance = (endPosition - startPosition).Magnitude
      if dragDistance <= TAP_MOVE_THRESHOLD and IsInsideBounds(endPosition, infoZone) then
@@ -2046,13 +2343,32 @@ spawn_func(function()
 
    local label = Instance.new("TextLabel")
    label.BackgroundTransparency = 1
-   label.Size = UDim2.new(1, -56, 1, 0)
+   label.Size = UDim2.new(1, -(56 + rightInset), 1, 0)
    label.Font = Enum.Font.GothamMedium
    label.TextSize = 13
    label.TextXAlignment = Enum.TextXAlignment.Left
    label.TextColor3 = TEXT_LIGHT
    label.Text = def.label
    label.Parent = row
+
+   local caret
+   if hasSubs then
+    caret = Instance.new("ImageButton")
+    caret.Name = "Caret"
+    caret.AutoButtonColor = false
+    caret.BackgroundTransparency = 1
+    caret.AnchorPoint = Vector2.new(1, 0.5)
+    caret.Position = UDim2.new(1, -54, 0.5, 0)
+    caret.Size = UDim2.new(0, 14, 0, 14)
+    caret.Image = "rbxassetid://81462102154124"
+    caret.ImageColor3 = TEXT_DIM
+    caret.Rotation = 0
+    caret.ZIndex = 3
+    caret.Parent = row
+    caret.MouseButton1Click:Connect(function()
+     ToggleSubmenu(def)
+    end)
+   end
 
    local pill = Instance.new("TextButton")
    pill.Name = "Toggle"
@@ -2075,7 +2391,7 @@ spawn_func(function()
    knob.Parent = pill
    NewCorner(9, knob)
 
-   toggleVisuals[def] = { pill = pill, knob = knob }
+   toggleVisuals[def] = { pill = pill, knob = knob, caret = caret }
 
    if def.subToggles and #def.subToggles > 0 then
     local subContainer = Instance.new("Frame")
@@ -2130,7 +2446,154 @@ spawn_func(function()
   SyncAllToggleVisuals()
 
   do
-   local scanOrderBase = totalToggles * 10 + 10
+   local section = Instance.new("Frame")
+   section.Name = "WhitelistSection"
+   section.Size = UDim2.new(1, 0, 0, 0)
+   section.AutomaticSize = Enum.AutomaticSize.Y
+   section.BackgroundTransparency = 1
+   section.LayoutOrder = #toggleDefs * 10 + 3
+   section.Parent = leftPanel
+
+   local sectionLayout = Instance.new("UIListLayout")
+   sectionLayout.SortOrder = Enum.SortOrder.LayoutOrder
+   sectionLayout.Padding = UDim.new(0, 4)
+   sectionLayout.Parent = section
+
+   local header = Instance.new("Frame")
+   header.Size = UDim2.new(1, 0, 0, 32)
+   header.BackgroundTransparency = 1
+   header.LayoutOrder = 1
+   header.Parent = section
+
+   local headerLabel = Instance.new("TextLabel")
+   headerLabel.BackgroundTransparency = 1
+   headerLabel.Size = UDim2.new(1, -36, 1, 0)
+   headerLabel.Font = Enum.Font.GothamMedium
+   headerLabel.TextSize = 13
+   headerLabel.TextXAlignment = Enum.TextXAlignment.Left
+   headerLabel.TextColor3 = TEXT_LIGHT
+   headerLabel.Text = "Whitelisted Links"
+   headerLabel.Parent = header
+
+   local addBtn = Instance.new("TextButton")
+   addBtn.Name = "AddLink"
+   addBtn.AutoButtonColor = false
+   addBtn.AnchorPoint = Vector2.new(1, 0.5)
+   addBtn.Position = UDim2.new(1, -4, 0.5, 0)
+   addBtn.Size = UDim2.new(0, 24, 0, 24)
+   addBtn.BackgroundColor3 = BG_DARK
+   addBtn.BackgroundTransparency = 0.15
+   addBtn.BorderSizePixel = 0
+   addBtn.Font = Enum.Font.GothamBold
+   addBtn.TextSize = 16
+   addBtn.TextColor3 = CALM
+   addBtn.Text = "+"
+   addBtn.Parent = header
+   NewCorner(12, addBtn)
+   NewStroke(addBtn, CALM, 1, 0.3)
+
+   addBtn.MouseEnter:Connect(function()
+    TweenService:Create(addBtn, TweenInfo.new(0.15), { BackgroundColor3 = CALM:Lerp(BG_DARK, 0.7) }):Play()
+   end)
+   addBtn.MouseLeave:Connect(function()
+    TweenService:Create(addBtn, TweenInfo.new(0.15), { BackgroundColor3 = BG_DARK }):Play()
+   end)
+
+   local entries = Instance.new("Frame")
+   entries.Name = "Entries"
+   entries.Size = UDim2.new(1, 0, 0, 0)
+   entries.AutomaticSize = Enum.AutomaticSize.Y
+   entries.BackgroundTransparency = 1
+   entries.LayoutOrder = 2
+   entries.Parent = section
+
+   local entriesLayout = Instance.new("UIListLayout")
+   entriesLayout.SortOrder = Enum.SortOrder.LayoutOrder
+   entriesLayout.Padding = UDim.new(0, 4)
+   entriesLayout.Parent = entries
+
+   local rowCounter = 0
+   local function BuildLinkRow(entry)
+    rowCounter = rowCounter + 1
+
+    local row = Instance.new("Frame")
+    row.Name = "LinkRow"
+    row.Size = UDim2.new(1, 0, 0, 26)
+    row.BackgroundTransparency = 1
+    row.LayoutOrder = rowCounter
+    row.Parent = entries
+
+    local box = Instance.new("TextBox")
+    box.Name = "Input"
+    box.Size = UDim2.new(1, -6, 1, 0)
+    box.BackgroundColor3 = BG_DARK
+    box.BackgroundTransparency = 0.15
+    box.BorderSizePixel = 0
+    box.Font = Enum.Font.Code
+    box.TextSize = 12
+    box.TextColor3 = TEXT_LIGHT
+    box.PlaceholderText = "example.com"
+    box.PlaceholderColor3 = TEXT_DIM
+    box.TextXAlignment = Enum.TextXAlignment.Left
+    box.ClearTextOnFocus = false
+    box.ClipsDescendants = true
+    box.Text = entry.raw
+    box.Parent = row
+    NewCorner(6, box)
+    NewStroke(box, Color3.fromRGB(255, 255, 255), 1, 0.88)
+
+    local pad = Instance.new("UIPadding")
+    pad.PaddingLeft = UDim.new(0, 6)
+    pad.PaddingRight = UDim.new(0, 26)
+    pad.Parent = box
+
+    local removeBtn = Instance.new("TextButton")
+    removeBtn.Name = "Remove"
+    removeBtn.AutoButtonColor = false
+    removeBtn.AnchorPoint = Vector2.new(1, 0.5)
+    removeBtn.Position = UDim2.new(1, -10, 0.5, 0)
+    removeBtn.Size = UDim2.new(0, 18, 0, 18)
+    removeBtn.BackgroundTransparency = 1
+    removeBtn.BorderSizePixel = 0
+    removeBtn.Font = Enum.Font.GothamBold
+    removeBtn.TextSize = 13
+    removeBtn.TextColor3 = TEXT_DIM
+    removeBtn.Text = "x"
+    removeBtn.ZIndex = 2
+    removeBtn.Parent = row
+
+    removeBtn.MouseEnter:Connect(function()
+     removeBtn.TextColor3 = RED
+    end)
+    removeBtn.MouseLeave:Connect(function()
+     removeBtn.TextColor3 = TEXT_DIM
+    end)
+    removeBtn.MouseButton1Click:Connect(function()
+     VyrnoxGuard.RemoveWhitelistedLink(entry)
+     row:Destroy()
+    end)
+
+    box.FocusLost:Connect(function()
+     VyrnoxGuard.SetWhitelistedLink(entry, box.Text)
+     box.Text = entry.raw
+    end)
+
+    return box
+   end
+
+   for _, entry in ipairs(VyrnoxGuard.WhitelistedLinks) do
+    BuildLinkRow(entry)
+   end
+
+   addBtn.MouseButton1Click:Connect(function()
+    local entry = VyrnoxGuard.AddWhitelistedLink("")
+    local box = BuildLinkRow(entry)
+    box:CaptureFocus()
+   end)
+  end
+
+  do
+   local scanOrderBase = #toggleDefs * 10 + 10
 
    local spacer = Instance.new("Frame")
    spacer.Size = UDim2.new(1, 0, 0, 6)
@@ -2253,79 +2716,93 @@ spawn_func(function()
    end
 
    RefreshStatsPanel = function()
-    headlineRows[1].Text = "Threats blocked: " .. #BlockLog
-    headlineRows[2].Text = "Flagged events: " .. #EventLog
-    headlineRows[3].Text = "HTTP requests seen: " .. Stats.HttpRequestsSeen
-    headlineRows[4].Text = "Session started: " .. os.date("%H:%M:%S", Stats.SessionStart)
+    local totals = StatsStore.GetTotals()
+    headlineRows[1].Text = "Threats blocked: " .. totals.Blocked
+    headlineRows[2].Text = "Flagged events: " .. totals.Events
+    headlineRows[3].Text = "HTTP requests seen: " .. totals.Http
+    headlineRows[4].Text = "Tracking since: " .. os.date("%Y-%m-%d %H:%M", totals.Since)
 
     ClearBreakdownRows()
-    local reasonCounts = {}
-    local reasonOrder = {}
-    for _, entry in ipairs(BlockLog) do
-     local r = entry.reason or "Unknown"
-     if not reasonCounts[r] then
-      reasonCounts[r] = 0
-      table.insert(reasonOrder, r)
-     end
-     reasonCounts[r] = reasonCounts[r] + 1
-    end
 
-    if #reasonOrder == 0 then
+    if #totals.ReasonOrder == 0 then
      local row = BuildStatRow(6)
      row.TextColor3 = TEXT_DIM
      row.Text = "  (none yet)"
      table.insert(breakdownRows, row)
     else
-     for i, r in ipairs(reasonOrder) do
+     for i, r in ipairs(totals.ReasonOrder) do
       local row = BuildStatRow(6 + i)
       row.AutomaticSize = Enum.AutomaticSize.Y
       row.Size = UDim2.new(1, 0, 0, 0)
       row.TextWrapped = true
-      row.Text = string.format("  %d  %s", reasonCounts[r], r)
+      row.Text = string.format("  %d  %s", totals.Reasons[r], r)
       table.insert(breakdownRows, row)
      end
     end
    end
 
-   local saveSlot = Instance.new("Frame")
-   saveSlot.Name = "SaveStatsSlot"
-   saveSlot.Size = UDim2.new(1, 0, 0, 40)
-   saveSlot.BackgroundTransparency = 1
-   saveSlot.LayoutOrder = 1000
-   saveSlot.Parent = statsPanel
+   local resetSlot = Instance.new("Frame")
+   resetSlot.Name = "ResetStatsSlot"
+   resetSlot.Size = UDim2.new(1, 0, 0, 40)
+   resetSlot.BackgroundTransparency = 1
+   resetSlot.LayoutOrder = 1000
+   resetSlot.Parent = statsPanel
 
-   local saveBtn = Instance.new("TextButton")
-   saveBtn.Name = "SaveStatsButton"
-   saveBtn.AutoButtonColor = false
-   saveBtn.AnchorPoint = Vector2.new(0.5, 0.5)
-   saveBtn.Position = UDim2.new(0.5, 0, 0.5, 0)
-   saveBtn.Size = UDim2.new(1, 0, 0, 34)
-   saveBtn.BackgroundColor3 = CALM
-   saveBtn.Font = Enum.Font.GothamBold
-   saveBtn.TextSize = 13
-   saveBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-   saveBtn.Text = "Save Stats to File"
-   saveBtn.Parent = saveSlot
-   NewCorner(9, saveBtn)
+   local resetBtn = Instance.new("TextButton")
+   resetBtn.Name = "ResetStatsButton"
+   resetBtn.AutoButtonColor = false
+   resetBtn.AnchorPoint = Vector2.new(0.5, 0.5)
+   resetBtn.Position = UDim2.new(0.5, 0, 0.5, 0)
+   resetBtn.Size = UDim2.new(1, 0, 0, 34)
+   resetBtn.BackgroundColor3 = RED
+   resetBtn.Font = Enum.Font.GothamBold
+   resetBtn.TextSize = 13
+   resetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+   resetBtn.Text = "Reset Stats"
+   resetBtn.Parent = resetSlot
+   NewCorner(9, resetBtn)
 
-   local saveBase = CALM
-   local saveHover = CALM:Lerp(Color3.fromRGB(255, 255, 255), 0.15)
-   saveBtn.MouseEnter:Connect(function()
-    TweenService:Create(saveBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-     BackgroundColor3 = saveHover,
+   local resetBase = RED
+   local resetHover = RED:Lerp(Color3.fromRGB(255, 255, 255), 0.15)
+   resetBtn.MouseEnter:Connect(function()
+    TweenService:Create(resetBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+     BackgroundColor3 = resetHover,
     }):Play()
    end)
-   saveBtn.MouseLeave:Connect(function()
-    TweenService:Create(saveBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-     BackgroundColor3 = saveBase,
+   resetBtn.MouseLeave:Connect(function()
+    TweenService:Create(resetBtn, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+     BackgroundColor3 = resetBase,
     }):Play()
    end)
-   saveBtn.MouseButton1Click:Connect(function()
-    local ok = SaveStats()
-    saveBtn.Text = ok and "Saved!" or "Save Failed"
+
+   local resetToken = 0
+   local resetArmed = false
+   resetBtn.MouseButton1Click:Connect(function()
+    resetToken = resetToken + 1
+    local myToken = resetToken
+
+    if not resetArmed then
+     resetArmed = true
+     resetBtn.Text = "Click again to confirm"
+     spawn_func(function()
+      wait_func(3)
+      if myToken == resetToken and resetArmed then
+       resetArmed = false
+       resetBtn.Text = "Reset Stats"
+      end
+     end)
+     return
+    end
+
+    resetArmed = false
+    local ok = StatsStore.Reset()
+    RefreshStatsPanel()
+    resetBtn.Text = ok and "Stats Reset!" or "Reset Failed"
     spawn_func(function()
      wait_func(1.5)
-     saveBtn.Text = "Save Stats to File"
+     if myToken == resetToken then
+      resetBtn.Text = "Reset Stats"
+     end
     end)
    end)
 
@@ -2517,6 +2994,40 @@ local function BlockedDomain(host)
  return MatchesDomainList(host, BlockedDomains)
 end
 local function IsWhitelistedHost(host) return MatchesDomainList(host, WhitelistedDomains) end
+
+local function ParseWhitelistEntry(raw)
+ local s = raw:lower():match("^%s*(.-)%s*$")
+ s = s:gsub("^%a[%w%+%.%-]*://", "")
+ local hostPart, rest = s:match("^([^/?#]+)(.*)$")
+ if not hostPart then return nil end
+ hostPart = hostPart:gsub(":%d+$", "")
+ hostPart = hostPart:gsub("^%*%.", "")
+ if hostPart == "" then return nil end
+ local path = rest:match("^(/[^?#]*)")
+ if path == "/" then path = nil end
+ return hostPart, path
+end
+
+function VyrnoxGuard.IsUserWhitelistedUrl(url)
+ local list = VyrnoxGuard.WhitelistedLinks
+ if typeof(url) ~= "string" or url == "" or #list == 0 then return false end
+ local lowered = url:lower()
+ local host = ExtractHost(lowered)
+ local urlPath = lowered:gsub("^%a[%w%+%.%-]*://", ""):match("^[^/?#]*(/[^?#]*)")
+ for _, entry in ipairs(list) do
+  if entry.parsedFor ~= entry.raw then
+   entry.parsedFor = entry.raw
+   entry.host, entry.path = ParseWhitelistEntry(entry.raw)
+  end
+  local eh = entry.host
+  if eh and (host == eh or host:sub(-(#eh + 1)) == "." .. eh) then
+   if not entry.path or (urlPath and urlPath:sub(1, #entry.path) == entry.path) then
+    return true
+   end
+  end
+ end
+ return false
+end
 local function IsHighVolumeTrusted(host) return MatchesDomainList(host, HighVolumeTrustedDomains) end
 
 local KnownGiveaways = {
@@ -2731,6 +3242,82 @@ local function ApplyScrubbedOptions(options, scrubbedUrl, urlChanged, scrubbedBo
  return out
 end
 
+local WebhookSignatures = {
+ {"Discord", "/api/webhooks/"},
+ {"Discord", "/api/v%d+/webhooks/", true},
+ {"Discord", "discord[%w%.%-]*%.com/api/v%d+/channels/%d+/messages", true},
+ {"Discord", "webhook.lewisakura.moe"},
+ {"Discord", "hooks.hyra.io"},
+ {"Telegram", "api.telegram.org"},
+ {"Slack", "hooks.slack.com"},
+ {"Microsoft Teams", "webhook.office.com"},
+ {"Microsoft Teams", "outlook.office.com/webhook"},
+ {"Microsoft Teams", "outlook.office365.com/webhook"},
+ {"Power Automate", "logic.azure.com"},
+ {"Google Chat", "chat.googleapis.com/v1/spaces/"},
+ {"Guilded", "guilded.gg/webhooks"},
+ {"LINE Notify", "notify-api.line.me"},
+ {"Pushover", "api.pushover.net"},
+ {"Pushbullet", "api.pushbullet.com"},
+ {"ntfy", "ntfy.sh/"},
+ {"Zapier", "hooks.zapier.com"},
+ {"IFTTT", "maker.ifttt.com"},
+ {"Make", "hook%.[%w%-]+%.make%.com", true},
+ {"Make", "hook.integromat.com"},
+ {"n8n", "n8n.cloud/webhook"},
+ {"webhook.site", "webhook.site"},
+ {"Pipedream", "pipedream.net"},
+ {"RequestCatcher", "requestcatcher.com"},
+ {"RequestBin", "requestbin.com"},
+ {"RequestBin", "requestbin.net"},
+ {"Hookbin", "hookbin.com"},
+ {"Beeceptor", "beeceptor.com"},
+ {"Mockbin", "mockbin.org"},
+ {"Postb.in", "postb.in"},
+ {"PTSV2", "ptsv2.com"},
+ {"Hookdeck", "hookdeck.com"},
+ {"Smee", "smee.io"},
+ {"Request Inspector", "requestinspector.com"},
+ {"Burp Collaborator", "burpcollaborator.net"},
+ {"Interactsh", "interact.sh"},
+ {"Canarytokens", "canarytokens.com"},
+ {"ngrok", "ngrok.io"},
+ {"ngrok", "ngrok-free.app"},
+ {"ngrok", "ngrok-free.dev"},
+ {"ngrok", "ngrok.app"},
+ {"ngrok", "ngrok.dev"},
+ {"Cloudflare Tunnel", "trycloudflare.com"},
+ {"localtunnel", "loca.lt"},
+ {"Serveo", "serveo.net"},
+ {"localhost.run", "localhost.run"},
+ {"localhost.run", "lhr.life"},
+ {"Pastebin upload", "pastebin.com/api"},
+ {"Hastebin upload", "hastebin.com/documents"},
+ {"dpaste upload", "dpaste.com/api"},
+ {"Catbox upload", "catbox.moe/user/api.php"},
+ {"Litterbox upload", "catbox.moe/resources/internals/api.php"},
+ {"GoFile upload", "gofile.io/uploadfile"},
+ {"file.io upload", "%f[%w]file%.io/?$", true},
+ {"file.io upload", "%f[%w]file%.io/?%?", true},
+ {"temp.sh upload", "%f[%w]temp%.sh/upload", true},
+ {"Formspree", "formspree.io"},
+ {"FormSubmit", "formsubmit.co"},
+ {"Getform", "getform.io"},
+ {"Web3Forms", "web3forms.com"},
+ {"EmailJS", "api.emailjs.com"},
+}
+
+local function FindWebhookSignature(text)
+ if typeof(text) ~= "string" or text == "" then return nil end
+ local lower = text:lower()
+ for _, sig in ipairs(WebhookSignatures) do
+  if lower:find(sig[2], 1, not sig[3]) then
+   return sig[1]
+  end
+ end
+ return nil
+end
+
 local function ScanString(str, checkDeobfuscated)
  if typeof(str) ~= "string" or str == "" then return false, nil end
 
@@ -2743,9 +3330,11 @@ local function ScanString(str, checkDeobfuscated)
   return true, "Blocked URL-encoded .ROBLOSECURITY cookie leak"
  end
 
- if BlockWebhooks and (decoded:find("/api/webhooks/", 1, true) or decoded:find("webhook.site", 1, true)
-    or decoded:find("pipedream.net", 1, true) or decoded:find("requestcatcher.com", 1, true)) then
-  return true, "Blocked data exfiltration to Webhook", "webhook"
+ if BlockWebhooks then
+  local service = FindWebhookSignature(decoded)
+  if service then
+   return true, "Blocked data exfiltration to Webhook (" .. service .. ")", "webhook"
+  end
  end
 
  if ProtectDomains then
@@ -2759,9 +3348,11 @@ local function ScanString(str, checkDeobfuscated)
   if ProtectCookies and b64Decoded:find(cookies, 1, true) then
    return true, "Blocked base64-encoded .ROBLOSECURITY cookie leak"
   end
-  if BlockWebhooks and (b64Decoded:find("/api/webhooks/", 1, true) or b64Decoded:find("webhook.site", 1, true)
-     or b64Decoded:find("pipedream.net", 1, true) or b64Decoded:find("requestcatcher.com", 1, true)) then
-   return true, "Blocked base64-encoded webhook exfiltration", "webhook"
+  if BlockWebhooks then
+   local service = FindWebhookSignature(b64Decoded)
+   if service then
+    return true, "Blocked base64-encoded webhook exfiltration (" .. service .. ")", "webhook"
+   end
   end
  end
 
@@ -3147,6 +3738,10 @@ if hook_func then
      url = options
     end
 
+    if VyrnoxGuard.IsUserWhitelistedUrl(url) then
+     return old(options)
+    end
+
     local scrubbedUrl, urlChanged = ScrubUserIP(url)
     local scrubbedBody, bodyChanged = ScrubUserIP(body)
     local scrubbedHeaders, headersChanged = ScrubHeaders(headers)
@@ -3181,7 +3776,9 @@ if hook_func then
     end
     return res
    end)
-   old = hook_func(func, wrapper)
+   pcall(function()
+    old = hook_func(func, wrapper)
+   end)
    OriginalFunctions[old] = true
    HookedLiveFunctions[func] = true
    hooked_functions[func] = true
@@ -3242,7 +3839,8 @@ local function WrapWebSocketConnect(name, connectFn)
  local oldConnect
  oldConnect = hook_func(connectFn, cclosure(function(url, ...)
   local scrubbedUrl = url
-  if ProtectWebSocket and typeof(url) == "string" then
+  local socketWhitelisted = VyrnoxGuard.IsUserWhitelistedUrl(url)
+  if ProtectWebSocket and not socketWhitelisted and typeof(url) == "string" then
    scrubbedUrl = ScrubUserIP(url)
    local bad, reason, kind = ThreatScan(scrubbedUrl, "", nil, nil)
    if bad then
@@ -3261,7 +3859,7 @@ local function WrapWebSocketConnect(name, connectFn)
    local oldSend
    local liveSend = socket.Send
    oldSend = hook_func(socket.Send, cclosure(function(self, data, ...)
-    if ProtectWebSocket and typeof(data) == "string" then
+    if ProtectWebSocket and not socketWhitelisted and typeof(data) == "string" then
      local scrubbedData = ScrubUserIP(data)
      local bad, reason, kind = ScanString(scrubbedData, true)
      if bad then
@@ -3297,6 +3895,244 @@ if hook_func then
   local obj = env[ns]
   if typeof(obj) == "table" and typeof(obj.websocket) == "table" and typeof(obj.websocket.connect) == "function" then
    WrapWebSocketConnect(ns .. ".websocket.connect", obj.websocket.connect)
+  end
+ end
+end
+
+do
+ local PhishBrand = "roblox"
+ local LegitDomains = { "roblox.com", "rbxcdn.com", "robloxlabs.com" }
+ local IgnoredExtensions = {
+  lua = true, luau = true, txt = true, json = true, md = true, xml = true, csv = true, cfg = true, ini = true, log = true, dat = true,
+  png = true, jpg = true, jpeg = true, gif = true, webp = true, mp3 = true, ogg = true,
+  rbxm = true, rbxmx = true, rbxl = true, rbxlx = true,
+ }
+
+ local Confusables = {
+  [0x430] = "a", [0x435] = "e", [0x43E] = "o", [0x440] = "p", [0x441] = "c", [0x443] = "y", [0x445] = "x", [0x433] = "r",
+  [0x456] = "i", [0x458] = "j", [0x455] = "s", [0x4CF] = "l", [0x4C0] = "l", [0x4BB] = "h", [0x501] = "d", [0x51B] = "q", [0x51D] = "w",
+  [0x410] = "a", [0x412] = "b", [0x415] = "e", [0x41A] = "k", [0x41C] = "m", [0x41D] = "h", [0x41E] = "o", [0x420] = "p",
+  [0x421] = "c", [0x422] = "t", [0x425] = "x", [0x406] = "i", [0x405] = "s",
+  [0x3BF] = "o", [0x3BD] = "v", [0x3C1] = "p", [0x3B9] = "i", [0x3B1] = "a",
+  [0x39F] = "o", [0x399] = "i", [0x392] = "b", [0x395] = "e", [0x39A] = "k", [0x3A1] = "p", [0x3A4] = "t", [0x3A7] = "x",
+  [0x131] = "i", [0x269] = "i", [0x142] = "l", [0x1C0] = "l", [0x2113] = "l", [0x217C] = "l", [0x216C] = "l", [0x2179] = "x", [0x261] = "g",
+ }
+
+ local function Normalize(text)
+  local out, invisible = {}, false
+  local ok = pcall(function()
+   for _, cp in utf8.codes(text) do
+    if cp < 0x80 then
+     out[#out + 1] = string.char(cp):lower()
+    elseif cp == 0x200B or cp == 0x200C or cp == 0x200D or cp == 0x200E or cp == 0x200F or cp == 0x2060 or cp == 0xFEFF or cp == 0x00AD then
+     invisible = true
+    elseif cp == 0x3002 or cp == 0xFF0E or cp == 0xFF61 then
+     out[#out + 1] = "."
+    elseif cp >= 0xFF01 and cp <= 0xFF5E then
+     out[#out + 1] = string.char(cp - 0xFEE0):upper()
+    elseif Confusables[cp] then
+     out[#out + 1] = Confusables[cp]:upper()
+    else
+     out[#out + 1] = "Z"
+    end
+   end
+  end)
+  if not ok then
+   return text:lower(), false
+  end
+  return table.concat(out), invisible
+ end
+
+ local function Fold(s)
+  return (s:lower():gsub("[i1|!]", "l"):gsub("0", "o"))
+ end
+
+ local function WithinOneEdit(a, b)
+  if a == b then return true end
+  local la, lb = #a, #b
+  if math.abs(la - lb) > 1 then return false end
+  local i, j, edits = 1, 1, 0
+  while i <= la and j <= lb do
+   if a:sub(i, i) == b:sub(j, j) then
+    i = i + 1
+    j = j + 1
+   else
+    edits = edits + 1
+    if edits > 1 then return false end
+    if la > lb then
+     i = i + 1
+    elseif lb > la then
+     j = j + 1
+    else
+     i = i + 1
+     j = j + 1
+    end
+   end
+  end
+  edits = edits + (la - i + 1) + (lb - j + 1)
+  return edits <= 1
+ end
+
+ local function IsLegitHost(host)
+  for _, d in ipairs(LegitDomains) do
+   if host == d or host:sub(-(#d + 1)) == "." .. d then
+    return true
+   end
+  end
+  return false
+ end
+
+ local function AnalyzeToken(token, invisible)
+  if not token:find(".", 1, true) then return nil end
+  local labels = {}
+  for l in token:gmatch("[^%.]+") do
+   labels[#labels + 1] = l
+  end
+  if #labels < 2 then return nil end
+  if IgnoredExtensions[labels[#labels]:lower()] then return nil end
+  if not invisible and IsLegitHost(token) then return nil end
+
+  if Fold(token):find(PhishBrand, 1, true) then
+   return "has \"roblox\" in it but isn't a Roblox domain"
+  end
+  for i = 1, #labels - 1 do
+   for part in Fold(labels[i]):gmatch("[^%-_]+") do
+    if #part >= 5 and #part <= 7 and WithinOneEdit(part, PhishBrand) then
+     return "looks like a misspelling of roblox"
+    end
+   end
+  end
+  return nil
+ end
+
+ local function ScanClipboardText(text)
+  local norm, invisible = Normalize(text)
+
+  for authority in norm:gmatch("://([^/?#%s]+)") do
+   local userinfo, hostport = authority:match("^(.*)@([^@]*)$")
+   if userinfo and Fold(userinfo):find(PhishBrand, 1, true) then
+    local host = hostport:match("^([^:]+)") or hostport
+    if invisible or not IsLegitHost(host) then
+     return true, host, "real destination is hidden behind a roblox.com-style prefix"
+    end
+   end
+  end
+
+  for token in norm:gmatch("[%w%-%._]+") do
+   token = token:gsub("^[%.%-_]+", ""):gsub("[%.%-_]+$", "")
+   local why = AnalyzeToken(token, invisible)
+   if why then
+    return true, token, why
+   end
+  end
+  return false
+ end
+
+ local ClipTimes = {}
+ local ClipWindow = 2
+ local ClipMaxCalls = 5
+ local ClipLastWarn = -math.huge
+
+ local function ClipboardRateLimited(name)
+  local now = (tick and tick()) or os.clock()
+  ClipTimes[#ClipTimes + 1] = now
+  while #ClipTimes > 0 and now - ClipTimes[1] > ClipWindow do
+   table.remove(ClipTimes, 1)
+  end
+  if #ClipTimes <= ClipMaxCalls then
+   return false
+  end
+  if now - ClipLastWarn > 5 then
+   ClipLastWarn = now
+   local reason = string.format("Clipboard spam blocked (more than %d writes in %ds)", ClipMaxCalls, ClipWindow)
+   Console("warn", reason .. " [Hook: " .. name .. "]")
+   LogBlock(reason, name, "(clipboard)")
+  end
+  return true
+ end
+
+ local function InspectClipboard(name, text)
+  if not VyrnoxGuard.ProtectClipboard then
+   return false
+  end
+  if VyrnoxGuard.RateLimitClipboard and ClipboardRateLimited(name) then
+   return true
+  end
+  if typeof(text) ~= "string" or text == "" then
+   return false
+  end
+  if #text > 32768 then
+   text = text:sub(1, 32768)
+  end
+  local okScan, bad, host, why = pcall(ScanClipboardText, text)
+  if not okScan or not bad then
+   return false
+  end
+  if VyrnoxGuard.IsUserWhitelistedUrl(host) then
+   return false
+  end
+
+  local shown = (#host > 60) and (host:sub(1, 57) .. "...") or host
+  local reason = "Possible phishing link copied to clipboard: " .. shown .. " (" .. why .. ")"
+  if VyrnoxGuard.BlockClipboard then
+   Console("warn", reason .. " [Hook: " .. name .. "] (Blocked)")
+   LogBlock(reason, name, host)
+   return true
+  end
+  LogEvent("clipboard-phishing", reason .. " [Hook: " .. name .. "]")
+  if ShowThreatNotification then
+   pcall(ShowThreatNotification, reason)
+  end
+  return false
+ end
+
+ local function HookClipboardFunction(name, func, getCurrent)
+  if typeof(func) ~= "function" or hooked_functions[func] then return end
+  local old
+  local ok = pcall(function()
+   old = hook_func(func, cclosure(function(text, ...)
+    if InspectClipboard(name, text) then
+     return nil
+    end
+    return old(text, ...)
+   end))
+  end)
+  if not ok or not old then return end
+  OriginalFunctions[old] = true
+  HookedLiveFunctions[func] = true
+  hooked_functions[func] = true
+  if getCurrent then
+   RegisterHookWatch(name, getCurrent)
+  end
+ end
+
+ if hook_func then
+  local clipboardNames = {
+   "setclipboard", "toclipboard", "set_clipboard", "setrbxclipboard", "writeclipboard",
+   "write_clipboard", "copytoclipboard", "copy_to_clipboard",
+  }
+  for _, fname in ipairs(clipboardNames) do
+   HookClipboardFunction(fname, env[fname], function() return env[fname] end)
+  end
+  for _, ns in ipairs(namespaces) do
+   local obj = env[ns]
+   if typeof(obj) == "table" then
+    for _, fname in ipairs(clipboardNames) do
+     if typeof(obj[fname]) == "function" then
+      HookClipboardFunction(ns .. "." .. fname, obj[fname], function() local o = env[ns]; return o and o[fname] end)
+     end
+    end
+   end
+  end
+  for _, tname in ipairs({ "clipboard", "Clipboard" }) do
+   local obj = env[tname]
+   if typeof(obj) == "table" then
+    for _, fname in ipairs({ "set", "write", "copy", "setclipboard", "settext" }) do
+     if typeof(obj[fname]) == "function" then
+      HookClipboardFunction(tname .. "." .. fname, obj[fname], function() local o = env[tname]; return o and o[fname] end)
+     end
+    end
+   end
   end
  end
 end
@@ -3361,6 +4197,24 @@ for _, fname in ipairs(fs_write_funcs) do
  if typeof(func) == "function" then
   local old
   old = hook_func(func, cclosure(function(path, content, ...)
+   if ProtectFilesystem and BlockBigFiles and typeof(content) == "string" then
+    local resultingSize = #content
+    if fname == "appendfile" and typeof(isfile) == "function" and typeof(getfilesize) == "function" then
+     local okExists, exists = pcall(isfile, path)
+     if okExists and exists then
+      local okSize, existingSize = pcall(getfilesize, path)
+      if okSize and typeof(existingSize) == "number" then
+       resultingSize = resultingSize + existingSize
+      end
+     end
+    end
+    if resultingSize > MaxWriteFileSize then
+     local reason = string.format("Blocked oversized file write (%.1f MB, limit %d MB)", resultingSize / (1024 * 1024), MaxWriteFileSize / (1024 * 1024))
+     Console("warn", reason .. " [Hook: " .. fname .. " -> " .. tostring(path) .. "]")
+     LogBlock(reason, fname, tostring(path))
+     return nil
+    end
+   end
    if ProtectFilesystem and typeof(content) == "string" and content ~= "" then
     local bad, reason = ScanString(content)
     if not bad and TryXorContainsCookie(content) then
@@ -3519,7 +4373,6 @@ IsFileScanRunning = function()
  return ScanIsRunning
 end
 
-
 spawn_func(function()
  pcall(wait_func, 1.5)
 
@@ -3545,6 +4398,9 @@ spawn_func(function()
     local url, body = args[1], args[2]
     if typeof(url) == "string" then
      CountHttpRequestSeen()
+     if VyrnoxGuard.IsUserWhitelistedUrl(url) then
+      return oldnamecall(self, ...)
+     end
      local scrubbedUrl, urlChanged = ScrubUserIP(url)
      local scrubbedBody, bodyChanged = ScrubUserIP(typeof(body) == "string" and body or "")
      local bad, reason, kind = ThreatScan(scrubbedUrl, scrubbedBody, nil, method)
@@ -3573,6 +4429,21 @@ spawn_func(function()
      end
      return result
     end
+   elseif BlockForcedMessages and (method == "SendAsync" or method == "FireServer") then
+    local isChatSend = false
+    if method == "SendAsync" then
+     local okClass, isChannel = pcall(function() return typeof(self) == "Instance" and self:IsA("TextChannel") end)
+     isChatSend = okClass and isChannel == true
+    else
+     local okName, remoteName = pcall(function() return typeof(self) == "Instance" and self.Name end)
+     isChatSend = okName and remoteName == "SayMessageRequest"
+    end
+    if isChatSend and typeof(checkcaller) == "function" and checkcaller() then
+     local preview = tostring((...) ~= nil and (...) or ""):sub(1, 60)
+     Console("warn", "Blocked forced chat message: \"" .. preview .. "\" [Hook: " .. method .. "]")
+     LogBlock("Forced chat message blocked", method, "(chat)")
+     return nil
+    end
    elseif method == "ReadPixels" or method == "WritePixels" or method == "GetImage" or method == "ImageContent" then
     local ok, className = pcall(function() return self.ClassName end)
     LogEvent("pixel-buffer-access", method .. " called on " .. (ok and tostring(className) or "instance"), "info")
@@ -3581,6 +4452,9 @@ spawn_func(function()
     if typeof(options) == "table" then
      CountHttpRequestSeen()
      local url = options.Url or options.url or ""
+     if VyrnoxGuard.IsUserWhitelistedUrl(url) then
+      return oldnamecall(self, ...)
+     end
      local body = options.Body or options.body or ""
      local headers = options.Headers or options.headers
      local scrubbedUrl, urlChanged = ScrubUserIP(url)
