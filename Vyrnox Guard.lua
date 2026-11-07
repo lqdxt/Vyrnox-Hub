@@ -5,7 +5,7 @@
  place the loadstring:
  loadstring(game:HttpGet("https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/main/Vyrnox%20Guard.lua"))()
  in your executor's autoexec/Autoexecution folder so it runs on every game
- do NOT paste this entire file as you will miss updates
+ do NOT paste this entire file as you will miss updates (many are important)
  should load before any other script has a chance to execute
  load order matters: Vyrnox Guard can only catch what happens after it's active
  that said, you still shouldn't execute untrusted + obfuscated scripts blindly
@@ -24,8 +24,27 @@ local wait_func = clone_func((task and task.wait) or env.wait or wait)
 local hf = clone_func((type(env.crypt) == "table" and (env.crypt.sha256 or env.crypt.hash)) or env.sha256 or (type(env.hash) == "table" and env.hash.sha256) or sha256)
 local hash_func = clone_func(hf and function(data) if type(env.crypt) == "table" and hf == env.crypt.hash then return env.crypt.hash(data, "sha256") end return hf(data) end)
 local restore_func = clone_func(env.restorefunction or env.restorefunc or env.restorehook or env.unhookfunction or restorefunction)
-if env.VyrnoxGuardEnabled then error("script already exists?", 1) end
+if env.VyrnoxGuardEnabled then
+ local alive = nil
+ local liveRequest = env.request or env.http_request or (type(env.syn) == "table" and env.syn.request)
+ if type(liveRequest) == "function" then
+  local okReq, res = pcall(liveRequest, { Url = "http://127.0.0.1:1/vyrnox-canary", Method = "POST", Body = "_|WARNING:-DO-NOT-SHARE-THIS" })
+  alive = okReq and type(res) == "table" and res.StatusCode == 403 and res.Body == '{"success":false,"error":"Blocked by Vyrnox Guard","status":403}'
+ end
+ if alive ~= false then error("script already exists?", 1) end
+ pcall(warn, "[Vyrnox Guard] VyrnoxGuardEnabled was already set but no working guard answered. Likely spoofed.")
+end
 env.VyrnoxGuardEnabled = true
+
+local Safe = {
+ pcall = pcall, typeof = typeof, select = select, unpack = table.unpack, lower = string.lower,
+ getnamecallmethod = env.getnamecallmethod or getnamecallmethod,
+ checkcaller = env.checkcaller or checkcaller,
+ setreadonly = clone_func(env.setreadonly or setreadonly),
+ getrawmetatable = clone_func(env.getrawmetatable or getrawmetatable),
+ Canary = false,
+ Hidden = setmetatable({}, { __mode = "k" }),
+}
 
 local OriginalFunctions = {}
 local HookedLiveFunctions = {}
@@ -82,6 +101,7 @@ if is_func_hooked == nil then
 end
 
 local function Console(msg_type, msg)
+ if Safe.Canary then return end
  if AddConsoleLine then
   AddConsoleLine(msg_type, msg)
   return
@@ -161,31 +181,43 @@ local function GuardedRestore(oldRestore, target)
 end
 
 do
- if restore_func then
-  local layer1Ok = false
+ Safe.RestoreGuards = {}
+ Safe.Hidden[Safe.RestoreGuards] = true
+ Safe.RestoreCanaryTarget = function() end
+ HookedLiveFunctions[Safe.RestoreCanaryTarget] = true
+ local names = { "restorefunction", "restorefunc", "restorehook", "unhookfunction", "restore_function", "restoreclosure" }
+ local seenRestore = {}
+ local function InstallRestoreGuard(label, getCurrent, setCurrent)
+  local okG, live = pcall(getCurrent)
+  if not okG or type(live) ~= "function" or seenRestore[live] then return end
+  seenRestore[live] = true
+  local oldRestore
+  local guard = cclosure(function(target)
+   return GuardedRestore(oldRestore, target)
+  end)
+  local hooked = false
   if hook_func then
-   local hookedOldRestore
-   local hookOk = pcall(function()
-    hookedOldRestore = hook_func(restore_func, cclosure(function(target)
-     return GuardedRestore(hookedOldRestore, target)
-    end))
-   end)
-   if hookOk and hookedOldRestore then
-    OriginalFunctions[hookedOldRestore] = true
-    layer1Ok = true
-   end
+   hooked = pcall(function() oldRestore = hook_func(live, guard) end) and type(oldRestore) == "function"
   end
-  if not layer1Ok then
-   local GuardedGlobal = cclosure(function(target)
-    return GuardedRestore(restore_func, target)
-   end)
-   pcall(function()
-    if env then env.restorefunction = GuardedGlobal end
-   end)
-   pcall(function()
-    getgenv().restorefunction = GuardedGlobal
-   end)
-   restorefunction = GuardedGlobal
+  if hooked then
+   OriginalFunctions[oldRestore] = true
+   HookedLiveFunctions[live] = true
+  else
+   oldRestore = live
+   pcall(setCurrent, guard)
+   HookedLiveFunctions[guard] = true
+   OriginalFunctions[live] = true
+  end
+  local rec = { name = label, getCurrent = getCurrent, setCurrent = setCurrent, guard = guard, hooked = hooked }
+  Safe.Hidden[rec] = true
+  table.insert(Safe.RestoreGuards, rec)
+ end
+ for _, n in ipairs(names) do
+  InstallRestoreGuard(n, function() return env[n] end, function(v) env[n] = v end)
+ end
+ if type(env.syn) == "table" then
+  for _, n in ipairs(names) do
+   InstallRestoreGuard("syn." .. n, function() local o = env.syn; return o and o[n] end, function(v) local o = env.syn; if o then o[n] = v end end)
   end
  end
 end
@@ -298,6 +330,58 @@ if old_getprotos then
   HookedLiveFunctions[getprotos] = true
   hookfunction(getprotos, secure_getprotos)
  end
+end
+
+do
+ Safe.Hidden[OriginalFunctions] = true
+ Safe.Hidden[HookedLiveFunctions] = true
+ local function IsHidden(v)
+  local t = type(v)
+  if t == "function" then return OriginalFunctions[v] == true end
+  if t == "table" then return Safe.Hidden[v] == true end
+  return false
+ end
+ local function Strip(t)
+  if type(t) ~= "table" then return t end
+  local out, n, len = {}, 0, #t
+  for i = 1, len do
+   local v = t[i]
+   if not IsHidden(v) then n = n + 1; out[n] = v end
+  end
+  for k, v in pairs(t) do
+   if not (type(k) == "number" and k >= 1 and k <= len and k % 1 == 0) and not IsHidden(v) then
+    out[k] = v
+   end
+  end
+  return out
+ end
+ local seen = {}
+ local function HookScanner(fn, post)
+  if type(fn) ~= "function" or seen[fn] or not hook_func then return end
+  seen[fn] = true
+  local old
+  local ok = pcall(function()
+   old = hook_func(fn, cclosure(function(...)
+    local r = old(...)
+    return post(r, ...)
+   end))
+  end)
+  if ok and old then
+   OriginalFunctions[old] = true
+   HookedLiveFunctions[fn] = true
+  end
+ end
+ local plain = function(r) return Strip(r) end
+ HookScanner(env.getgc or getgc, plain)
+ HookScanner(debug and debug.getgc, plain)
+ HookScanner(env.getreg or getreg, plain)
+ HookScanner(env.filtergc or filtergc, function(r, _, _, returnOne)
+  if returnOne then
+   if IsHidden(r) then return nil end
+   return r
+  end
+  return Strip(r)
+ end)
 end
 
 local BlockedDomains = {
@@ -413,6 +497,13 @@ end
 
 local ChangelogData = {
  {
+  version = "1.3",
+  date = "2026-11-07",
+  changes = {
+   "Significantly improved anti tampering.",
+  },
+ },
+ {
   version = "1.2",
   date = "2026-11-03",
   changes = {
@@ -451,6 +542,7 @@ local ChangelogData = {
 
 local BlockLog = {}
 local function LogBlock(reason, hookName, url)
+ if Safe.Canary then return end
  table.insert(BlockLog, { time = os.time(), reason = reason, hook = hookName, url = url })
  if MarkStatsDirty then MarkStatsDirty() end
  if ShowThreatNotification then
@@ -479,6 +571,7 @@ local Stats = {
  HttpRequestsSeen = 0,
 }
 local function CountHttpRequestSeen()
+ if Safe.Canary then return end
  Stats.HttpRequestsSeen = Stats.HttpRequestsSeen + 1
  if MarkStatsDirty then MarkStatsDirty() end
 end
@@ -750,20 +843,75 @@ function VyrnoxGuard.ToggleMetatable(enabled)
  return ProtectMetatable
 end
 
+local GuardFS = { Depth = 0, Folder = {"vyrnox", "guard"} }
+
+function GuardFS.As(fn)
+ return function(...)
+  GuardFS.Depth = GuardFS.Depth + 1
+  local r = table.pack(pcall(fn, ...))
+  GuardFS.Depth = GuardFS.Depth - 1
+  if not r[1] then error(r[2], 0) end
+  return table.unpack(r, 2, r.n)
+ end
+end
+
+function GuardFS.Resolve(path)
+ local out = {}
+ local normalized = string.lower((string.gsub(path, "\\", "/")))
+ for seg in string.gmatch(normalized, "[^/]+") do
+  seg = string.gsub(seg, "^%s+", "")
+  seg = string.gsub(seg, "%s+$", "")
+  if seg == "." then
+  elseif seg == ".." then
+   table.remove(out)
+  else
+   seg = string.match(seg, "^([^:]*)") or seg
+   seg = string.gsub(seg, "[%. ]+$", "")
+   if string.match(seg, "^vyrnox~%d+$") then seg = "vyrnox" end
+   if string.match(seg, "^guard~%d+$") then seg = "guard" end
+   if seg ~= "" then table.insert(out, seg) end
+  end
+ end
+ return out
+end
+
+function GuardFS.IsInside(path)
+ if typeof(path) ~= "string" then return false end
+ local segs = GuardFS.Resolve(path)
+ for i = 1, #segs - 1 do
+  if segs[i] == GuardFS.Folder[1] and segs[i + 1] == GuardFS.Folder[2] then
+   return true
+  end
+ end
+ return false
+end
+
+function GuardFS.IsAncestor(path)
+ if typeof(path) ~= "string" then return false end
+ local segs = GuardFS.Resolve(path)
+ local last = segs[#segs]
+ return last == nil or last == "workspace" or last == GuardFS.Folder[1]
+end
+
+function GuardFS.Deny(fname, path)
+ Console("warn", "Blocked unauthorized access to the Guard folder [Hook: " .. fname .. " -> " .. tostring(path) .. "]")
+ LogBlock("Unauthorized access to Guard folder", fname, tostring(path))
+end
+
 local ConfigRoot = "Vyrnox"
 local ConfigFolder = "Vyrnox/Guard"
 local ConfigPath = "Vyrnox/Guard/config.json"
 
 local function EnsureConfigFolders()
  if typeof(makefolder) ~= "function" or typeof(isfolder) ~= "function" then return end
- pcall(function()
+ pcall(GuardFS.As(function()
   if not isfolder(ConfigRoot) then
    makefolder(ConfigRoot)
   end
   if not isfolder(ConfigFolder) then
    makefolder(ConfigFolder)
   end
- end)
+ end))
 end
 
 EnsureConfigFolders()
@@ -818,7 +966,7 @@ function StatsStore.Persist()
  if other > 0 then
   table.insert(list, { reason = "(other reasons)", count = other })
  end
- return (pcall(function()
+ return (pcall(GuardFS.As(function()
   EnsureConfigFolders()
   writefile(StatsStore.Path, game:GetService("HttpService"):JSONEncode({
    Blocked = totals.Blocked,
@@ -827,15 +975,15 @@ function StatsStore.Persist()
    Since = totals.Since,
    Reasons = list,
   }))
- end))
+ end)))
 end
 
 function StatsStore.Load()
  if typeof(readfile) ~= "function" or typeof(isfile) ~= "function" then return end
- local ok, data = pcall(function()
+ local ok, data = pcall(GuardFS.As(function()
   if not isfile(StatsStore.Path) then return nil end
   return game:GetService("HttpService"):JSONDecode(readfile(StatsStore.Path))
- end)
+ end))
  if not ok or typeof(data) ~= "table" then return end
 
  local saved = NewSavedStats()
@@ -896,7 +1044,7 @@ VyrnoxGuard.ResetStats = StatsStore.Reset
 
 local function SaveConfig()
  if typeof(writefile) ~= "function" then return end
- local ok = pcall(function()
+ local ok = pcall(GuardFS.As(function()
   EnsureConfigFolders()
   local data = {
    ProtectCookies = ProtectCookies,
@@ -927,7 +1075,7 @@ local function SaveConfig()
    CRE = CRE,
   }
   writefile(ConfigPath, game:GetService("HttpService"):JSONEncode(data))
- end)
+ end))
  if not ok then
   Console("warn", "Failed to save toggle configuration.")
  end
@@ -936,10 +1084,10 @@ end
 local function LoadConfig()
  EnsureConfigFolders()
  if typeof(readfile) ~= "function" or typeof(isfile) ~= "function" then return end
- local ok, result = pcall(function()
+ local ok, result = pcall(GuardFS.As(function()
   if not isfile(ConfigPath) then return nil end
   return game:GetService("HttpService"):JSONDecode(readfile(ConfigPath))
- end)
+ end))
  if not ok or typeof(result) ~= "table" then return end
 
  if typeof(result.ProtectCookies) == "boolean" then VyrnoxGuard.ToggleCookies(result.ProtectCookies) end
@@ -2952,9 +3100,11 @@ local function Deobfuscate(str)
 end
 
 local function ExtractHost(url)
- local stripped = url:match("^https?://(.+)$") or url
- stripped = stripped:match("^[^@/]+@(.+)$") or stripped
- local authority = stripped:match("^([^/?#]+)") or stripped
+ url = (url:gsub("%c", ""))
+ url = url:match("^%s*(.-)%s*$")
+ local stripped = url:match("^%a[%w%+%.%-]*:[/\\]+(.*)$") or url
+ local authority = stripped:match("^([^/?#\\]*)") or stripped
+ authority = authority:match("^.*@(.*)$") or authority
 
  local bracketed = authority:match("^%[([^%]]+)%]")
  if bracketed then
@@ -2967,7 +3117,9 @@ local function ExtractHost(url)
   return authority
  end
 
- return authority:match("^([^:]+)") or authority
+ local host = authority:match("^([^:]+)") or authority
+ host = (host:gsub("%.+$", ""))
+ return host
 end
 
 local function MatchesDomainList(host, list)
@@ -3011,9 +3163,16 @@ end
 function VyrnoxGuard.IsUserWhitelistedUrl(url)
  local list = VyrnoxGuard.WhitelistedLinks
  if typeof(url) ~= "string" or url == "" or #list == 0 then return false end
+ if url:find("[%c\\]") then return false end
  local lowered = url:lower()
+ local decoded = FullyUrlDecode(lowered)
+ if decoded:find("[%c\\]") then return false end
  local host = ExtractHost(lowered)
- local urlPath = lowered:gsub("^%a[%w%+%.%-]*://", ""):match("^[^/?#]*(/[^?#]*)")
+ if host == "" or host ~= ExtractHost(decoded) then return false end
+ local rest = lowered:gsub("^%a[%w%+%.%-]*://", "")
+ local urlPath = rest:match("^[^/?#]*(/[^?#]*)")
+ local decodedPath = urlPath and FullyUrlDecode(urlPath) or nil
+ if decodedPath and (decodedPath .. "/"):find("/%.%./") then return false end
  for _, entry in ipairs(list) do
   if entry.parsedFor ~= entry.raw then
    entry.parsedFor = entry.raw
@@ -3021,8 +3180,15 @@ function VyrnoxGuard.IsUserWhitelistedUrl(url)
   end
   local eh = entry.host
   if eh and (host == eh or host:sub(-(#eh + 1)) == "." .. eh) then
-   if not entry.path or (urlPath and urlPath:sub(1, #entry.path) == entry.path) then
+   local ep = entry.path
+   if not ep then
     return true
+   end
+   if urlPath and urlPath:sub(1, #ep) == ep and decodedPath:sub(1, #ep) == ep then
+    local nextChar = urlPath:sub(#ep + 1, #ep + 1)
+    if nextChar == "" or nextChar == "/" or ep:sub(-1) == "/" then
+     return true
+    end
    end
   end
  end
@@ -3604,6 +3770,14 @@ end
 local C2BlockThreshold = 4
 
 local function ThreatScan(url, body, headers, method)
+ if typeof(url) == "string" then
+  local noCtl = url:gsub("%c", "")
+  local afterScheme = noCtl:gsub("^%s*%a[%w%+%.%-]*:[/\\]+", "")
+  local authority = afterScheme:match("^([^/?#]*)")
+  if authority and authority:find("\\", 1, true) then
+   return true, "Blocked URL with a backslash in its host (parser-confusion trick to disguise the real destination)"
+  end
+ end
  local host = ExtractHost(FullyUrlDecode(typeof(url) == "string" and url or "")):lower()
  if IsWhitelistedHost(host) then return false, nil end
 
@@ -3691,16 +3865,50 @@ local function ScanArgs(...)
  return false, nil
 end
 
+function VyrnoxGuard.WhitelistLeakCheck(url, body, headers)
+ if not ProtectCookies then return false, nil end
+ local function leaks(str)
+  if typeof(str) ~= "string" or str == "" then return nil end
+  if str:find(cookies, 1, true) then return "Blocked request containing .ROBLOSECURITY cookie" end
+  local decoded = FullyUrlDecode(str)
+  if decoded ~= str and decoded:find(cookies, 1, true) then return "Blocked URL-encoded .ROBLOSECURITY cookie leak" end
+  local b64 = TryBase64Decode(str)
+  if b64 and b64:find(cookies, 1, true) then return "Blocked base64-encoded .ROBLOSECURITY cookie leak" end
+  if #str >= #cookiesHex and str:lower():find(cookiesHex, 1, true) then return "Blocked hex-encoded .ROBLOSECURITY cookie leak" end
+  if str:reverse():find(cookies, 1, true) then return "Blocked reversed .ROBLOSECURITY cookie leak" end
+  if TryXorContainsCookie(str) then return "Blocked XOR-obfuscated .ROBLOSECURITY cookie leak" end
+  return nil
+ end
+ local reason = leaks(url) or leaks(body)
+ if not reason and typeof(headers) == "table" then
+  local parts = {}
+  for k, v in pairs(headers) do table.insert(parts, tostring(k) .. ": " .. tostring(v)) end
+  reason = leaks(table.concat(parts, "\n"))
+ end
+ if reason then return true, reason end
+ return false, nil
+end
+
 local HookWatchList = {}
-local function RegisterHookWatch(label, getCurrent)
+Safe.Hidden[HookWatchList] = true
+local function RegisterHookWatch(label, getCurrent, kind, repair)
  local ok, baseline = pcall(getCurrent)
  if not ok then return end
- table.insert(HookWatchList, { label = label, getCurrent = getCurrent, baseline = baseline, tamperedWarned = false })
+ local entry = { label = label, getCurrent = getCurrent, baseline = baseline, tamperedWarned = false, kind = kind, repair = repair, repairs = 0, okStreak = 0 }
+ Safe.Hidden[entry] = true
+ if repair then Safe.Hidden[repair] = true end
+ table.insert(HookWatchList, entry)
+end
+for _, g in ipairs(Safe.RestoreGuards or {}) do
+ RegisterHookWatch("restore:" .. g.name, g.getCurrent, "restore", {
+  set = g.setCurrent,
+  rehook = g.hooked and function(f) pcall(hook_func, f, g.guard) end or nil,
+ })
 end
 
 local http_targets = {
- {"request", env.request, function() return env.request end},
- {"http_request", env.http_request, function() return env.http_request end},
+ {"request", env.request, function() return env.request end, function(v) env.request = v end},
+ {"http_request", env.http_request, function() return env.http_request end, function(v) env.http_request = v end},
 }
 
 local namespaces = { "syn", "fluxus", "krnl", "proto", "scriptware", "delta", "WR", "electron", "macsploit", "http", "sirhurt", "temple" }
@@ -3708,37 +3916,45 @@ for _, ns in ipairs(namespaces) do
  local obj = env[ns]
  if typeof(obj) == "table" then
   if typeof(obj.request) == "function" then
-   table.insert(http_targets, {ns .. ".request", obj.request, function() local o = env[ns]; return o and o.request end})
+   table.insert(http_targets, {ns .. ".request", obj.request, function() local o = env[ns]; return o and o.request end, function(v) local o = env[ns]; if o then o.request = v end end})
   end
   if typeof(obj.get) == "function" then
-   table.insert(http_targets, {ns .. ".get", obj.get, function() local o = env[ns]; return o and o.get end})
+   table.insert(http_targets, {ns .. ".get", obj.get, function() local o = env[ns]; return o and o.get end, function(v) local o = env[ns]; if o then o.get = v end end})
   end
   if typeof(obj.post) == "function" then
-   table.insert(http_targets, {ns .. ".post", obj.post, function() local o = env[ns]; return o and o.post end})
+   table.insert(http_targets, {ns .. ".post", obj.post, function() local o = env[ns]; return o and o.post end, function(v) local o = env[ns]; if o then o.post = v end end})
   end
  end
 end
 
 local hooked_functions = {}
+Safe.Hidden[hooked_functions] = true
+Safe.Hidden[http_targets] = true
 if hook_func then
  for _, target in ipairs(http_targets) do
-  local name, func, getCurrent = target[1], target[2], target[3]
+  local name, func, getCurrent, setCurrent = target[1], target[2], target[3], target[4]
   if typeof(func) == "function" and not hooked_functions[func] then
    local old
    local wrapper = cclosure(function(options)
     CountHttpRequestSeen()
     local url, body, headers, method = "", "", nil, nil
-    local optsIsTable = typeof(options) == "table"
+    local optsIsTable = Safe.typeof(options) == "table"
     if optsIsTable then
      url = options.Url or options.url or ""
      body = options.Body or options.body or ""
      headers = options.Headers or options.headers
      method = options.method or options.Method
-    elseif typeof(options) == "string" then
+    elseif Safe.typeof(options) == "string" then
      url = options
     end
 
     if VyrnoxGuard.IsUserWhitelistedUrl(url) then
+     local leak, leakReason = VyrnoxGuard.WhitelistLeakCheck(url, body, headers)
+     if leak then
+      Console("warn", leakReason .. " [Hook: " .. name .. "] (whitelisted host, still blocked)")
+      LogBlock(leakReason, name, url)
+      return {StatusCode = 403, Success = false, Body = BLOCKED_JSON_BODY, Headers = {["Content-Type"] = "application/json"}}
+     end
      return old(options)
     end
 
@@ -3766,8 +3982,8 @@ if hook_func then
     end
 
     local res = old(finalOptions)
-    if ProtectFingerprint and typeof(res) == "table" and typeof(scrubbedUrl) == "string" then
-     local host = ExtractHost(FullyUrlDecode(scrubbedUrl)):lower()
+    if ProtectFingerprint and Safe.typeof(res) == "table" and Safe.typeof(scrubbedUrl) == "string" then
+     local host = Safe.lower(ExtractHost(FullyUrlDecode(scrubbedUrl)))
      if InspectResponseForGiveaways(host, res.Body, res.Headers) then
       Console("warn", "Blocked response, matched IP logger content blocklist [Hook: " .. name .. "]")
       LogBlock("Matched IP logger content blocklist", name, scrubbedUrl)
@@ -3783,7 +3999,10 @@ if hook_func then
    HookedLiveFunctions[func] = true
    hooked_functions[func] = true
    if getCurrent then
-    RegisterHookWatch(name, getCurrent)
+    RegisterHookWatch(name, getCurrent, (name == "request" or name == "http_request" or name:sub(-8) == ".request") and "http" or nil, {
+     set = setCurrent,
+     rehook = function(f) pcall(hook_func, f, wrapper) end,
+    })
    end
   end
  end
@@ -3840,6 +4059,14 @@ local function WrapWebSocketConnect(name, connectFn)
  oldConnect = hook_func(connectFn, cclosure(function(url, ...)
   local scrubbedUrl = url
   local socketWhitelisted = VyrnoxGuard.IsUserWhitelistedUrl(url)
+  if socketWhitelisted and ProtectWebSocket then
+   local leak, leakReason = VyrnoxGuard.WhitelistLeakCheck(url, nil, nil)
+   if leak then
+    Console("warn", leakReason .. " [Hook: " .. name .. "] (whitelisted host, still blocked)")
+    LogBlock(leakReason, name, url)
+    return nil
+   end
+  end
   if ProtectWebSocket and not socketWhitelisted and typeof(url) == "string" then
    scrubbedUrl = ScrubUserIP(url)
    local bad, reason, kind = ThreatScan(scrubbedUrl, "", nil, nil)
@@ -3859,6 +4086,14 @@ local function WrapWebSocketConnect(name, connectFn)
    local oldSend
    local liveSend = socket.Send
    oldSend = hook_func(socket.Send, cclosure(function(self, data, ...)
+    if ProtectWebSocket and socketWhitelisted and typeof(data) == "string" then
+     local leak, leakReason = VyrnoxGuard.WhitelistLeakCheck("", data, nil)
+     if leak then
+      Console("warn", leakReason .. " [Hook: " .. name .. ":Send] (whitelisted host, still blocked)")
+      LogBlock(leakReason, name .. ":Send", tostring(url))
+      return nil
+     end
+    end
     if ProtectWebSocket and not socketWhitelisted and typeof(data) == "string" then
      local scrubbedData = ScrubUserIP(data)
      local bad, reason, kind = ScanString(scrubbedData, true)
@@ -4086,23 +4321,27 @@ do
   return false
  end
 
- local function HookClipboardFunction(name, func, getCurrent)
+ local function HookClipboardFunction(name, func, getCurrent, setCurrent)
   if typeof(func) ~= "function" or hooked_functions[func] then return end
   local old
+  local wrapper = cclosure(function(text, ...)
+   if InspectClipboard(name, text) then
+    return nil
+   end
+   return old(text, ...)
+  end)
   local ok = pcall(function()
-   old = hook_func(func, cclosure(function(text, ...)
-    if InspectClipboard(name, text) then
-     return nil
-    end
-    return old(text, ...)
-   end))
+   old = hook_func(func, wrapper)
   end)
   if not ok or not old then return end
   OriginalFunctions[old] = true
   HookedLiveFunctions[func] = true
   hooked_functions[func] = true
   if getCurrent then
-   RegisterHookWatch(name, getCurrent)
+   RegisterHookWatch(name, getCurrent, nil, {
+    set = setCurrent,
+    rehook = function(f) pcall(hook_func, f, wrapper) end,
+   })
   end
  end
 
@@ -4112,14 +4351,14 @@ do
    "write_clipboard", "copytoclipboard", "copy_to_clipboard",
   }
   for _, fname in ipairs(clipboardNames) do
-   HookClipboardFunction(fname, env[fname], function() return env[fname] end)
+   HookClipboardFunction(fname, env[fname], function() return env[fname] end, function(v) env[fname] = v end)
   end
   for _, ns in ipairs(namespaces) do
    local obj = env[ns]
    if typeof(obj) == "table" then
     for _, fname in ipairs(clipboardNames) do
      if typeof(obj[fname]) == "function" then
-      HookClipboardFunction(ns .. "." .. fname, obj[fname], function() local o = env[ns]; return o and o[fname] end)
+      HookClipboardFunction(ns .. "." .. fname, obj[fname], function() local o = env[ns]; return o and o[fname] end, function(v) local o = env[ns]; if o then o[fname] = v end end)
      end
     end
    end
@@ -4129,7 +4368,7 @@ do
    if typeof(obj) == "table" then
     for _, fname in ipairs({ "set", "write", "copy", "setclipboard", "settext" }) do
      if typeof(obj[fname]) == "function" then
-      HookClipboardFunction(tname .. "." .. fname, obj[fname], function() local o = env[tname]; return o and o[fname] end)
+      HookClipboardFunction(tname .. "." .. fname, obj[fname], function() local o = env[tname]; return o and o[fname] end, function(v) local o = env[tname]; if o then o[fname] = v end end)
      end
     end
    end
@@ -4157,6 +4396,10 @@ for _, fname in ipairs(fs_delete_funcs) do
  if typeof(func) == "function" then
   local old
   old = hook_func(func, cclosure(function(path, ...)
+   if GuardFS.Depth == 0 and (GuardFS.IsInside(path) or GuardFS.IsAncestor(path)) then
+    GuardFS.Deny(fname, path)
+    return false
+   end
    if not ProtectFilesystem then
     return old(path, ...)
    end
@@ -4197,6 +4440,10 @@ for _, fname in ipairs(fs_write_funcs) do
  if typeof(func) == "function" then
   local old
   old = hook_func(func, cclosure(function(path, content, ...)
+   if GuardFS.Depth == 0 and GuardFS.IsInside(path) then
+    GuardFS.Deny(fname, path)
+    return nil
+   end
    if ProtectFilesystem and BlockBigFiles and typeof(content) == "string" then
     local resultingSize = #content
     if fname == "appendfile" and typeof(isfile) == "function" and typeof(getfilesize) == "function" then
@@ -4227,6 +4474,55 @@ for _, fname in ipairs(fs_write_funcs) do
     end
    end
    return old(path, content, ...)
+  end))
+
+  OriginalFunctions[old] = true
+  HookedLiveFunctions[func] = true
+ end
+end
+
+local fs_guard_funcs = {"readfile", "readbinfile", "loadfile", "dofile", "isfile", "isfolder", "getfilesize", "getcustomasset", "getsynasset", "listfiles", "makefolder", "movefile", "renamefile", "copyfile"}
+local fs_two_path = { movefile = true, renamefile = true, copyfile = true }
+for _, fname in ipairs(fs_guard_funcs) do
+ local func = env[fname]
+ if typeof(func) == "function" then
+  local old
+  old = hook_func(func, cclosure(function(...)
+   if GuardFS.Depth > 0 then
+    return old(...)
+   end
+   local a, b = ...
+   local blocked = GuardFS.IsInside(a) or (fs_two_path[fname] and GuardFS.IsInside(b))
+   if not blocked and (fname == "movefile" or fname == "renamefile") and GuardFS.IsAncestor(a) then
+    blocked = true
+   end
+   if blocked then
+    GuardFS.Deny(fname, GuardFS.IsInside(a) and a or b)
+    if fname == "isfile" or fname == "isfolder" then
+     return false
+    elseif fname == "listfiles" then
+     return {}
+    elseif fname == "loadfile" then
+     return nil, tostring(a) .. " does not exist"
+    elseif fname == "readfile" or fname == "readbinfile" or fname == "dofile" or fname == "getfilesize" or fname == "getcustomasset" or fname == "getsynasset" then
+     error(tostring(a) .. " does not exist", 0)
+    end
+    return nil
+   end
+   if fname == "listfiles" then
+    local result = old(...)
+    if typeof(result) == "table" then
+     local filtered = {}
+     for _, entry in ipairs(result) do
+      if not GuardFS.IsInside(entry) then
+       table.insert(filtered, entry)
+      end
+     end
+     return filtered
+    end
+    return result
+   end
+   return old(...)
   end))
 
   OriginalFunctions[old] = true
@@ -4299,6 +4595,7 @@ local function RunFilesystemScanImpl(onComplete)
   ScanYield()
   if not ok or typeof(entries) ~= "table" then return out end
   for _, entryPath in ipairs(entries) do
+   if GuardFS.IsInside(entryPath) then continue end
    local isEntryFolder = false
    if typeof(isfolder) == "function" then
     local folderOk, folderResult = pcall(isfolder, entryPath)
@@ -4373,36 +4670,33 @@ IsFileScanRunning = function()
  return ScanIsRunning
 end
 
-spawn_func(function()
- pcall(wait_func, 1.5)
-
- if not UserSetMetatableManually then
-  ProtectMetatable = not AntiCheatPresent()
-  if not ProtectMetatable then
-   Console("warn", "Metatable protection (__namecall/__newindex) auto-disabled: this game may have an anti-cheat/admin system that can detect hooked metamethods and kick/ban for it. HTTP requests made through executor functions are still protected. Toggle Metatable if you're confident this game doesn't check for it.")
-   NotifyToggleChange()
-  end
- end
-
- local raw = ProtectMetatable and getrawmetatable(game) or nil
- if raw then
+local MetaHook = { installed = nil }
+local function InstallMetatableHook()
+ local raw = ProtectMetatable and Safe.getrawmetatable(game) or nil
+ if raw and not MetaHook.installed then
   local oldnamecall = raw.__namecall
   local oldnewindex = raw.__newindex
-  setreadonly(raw, false)
+  Safe.setreadonly(raw, false)
 
   raw.__namecall = cclosure(function(self, ...)
-   local method = getnamecallmethod()
+   local method = Safe.getnamecallmethod()
    if method == "HttpGet" or method == "HttpGetAsync" or method == "HttpPost" or method == "HttpPostAsync" or method == "GetAsync" or method == "PostAsync" then
-    local n = select("#", ...)
+    local n = Safe.select("#", ...)
     local args = {...}
     local url, body = args[1], args[2]
-    if typeof(url) == "string" then
+    if Safe.typeof(url) == "string" then
      CountHttpRequestSeen()
      if VyrnoxGuard.IsUserWhitelistedUrl(url) then
+      local leak, leakReason = VyrnoxGuard.WhitelistLeakCheck(url, body, nil)
+      if leak then
+       Console("warn", leakReason .. " [Hook: " .. method .. "] (whitelisted host, still blocked)")
+       LogBlock(leakReason, method, url)
+       return BLOCKED_JSON_BODY
+      end
       return oldnamecall(self, ...)
      end
      local scrubbedUrl, urlChanged = ScrubUserIP(url)
-     local scrubbedBody, bodyChanged = ScrubUserIP(typeof(body) == "string" and body or "")
+     local scrubbedBody, bodyChanged = ScrubUserIP(Safe.typeof(body) == "string" and body or "")
      local bad, reason, kind = ThreatScan(scrubbedUrl, scrubbedBody, nil, method)
      if bad then
       if kind == "webhook" and not BlockWebhooksHardBlock then
@@ -4416,11 +4710,11 @@ spawn_func(function()
      end
 
      if urlChanged then args[1] = scrubbedUrl end
-     if bodyChanged and typeof(body) == "string" then args[2] = scrubbedBody end
+     if bodyChanged and Safe.typeof(body) == "string" then args[2] = scrubbedBody end
 
-     local result = oldnamecall(self, table.unpack(args, 1, n))
-     if ProtectFingerprint and typeof(result) == "string" then
-      local host = ExtractHost(FullyUrlDecode(scrubbedUrl)):lower()
+     local result = oldnamecall(self, Safe.unpack(args, 1, n))
+     if ProtectFingerprint and Safe.typeof(result) == "string" then
+      local host = Safe.lower(ExtractHost(FullyUrlDecode(scrubbedUrl)))
       if InspectResponseForGiveaways(host, result) then
        Console("warn", "Blocked response, matched IP logger content blocklist [Hook: " .. method .. "]")
        LogBlock("Matched IP logger content blocklist", method, scrubbedUrl)
@@ -4432,27 +4726,33 @@ spawn_func(function()
    elseif BlockForcedMessages and (method == "SendAsync" or method == "FireServer") then
     local isChatSend = false
     if method == "SendAsync" then
-     local okClass, isChannel = pcall(function() return typeof(self) == "Instance" and self:IsA("TextChannel") end)
+     local okClass, isChannel = Safe.pcall(function() return Safe.typeof(self) == "Instance" and self:IsA("TextChannel") end)
      isChatSend = okClass and isChannel == true
     else
-     local okName, remoteName = pcall(function() return typeof(self) == "Instance" and self.Name end)
+     local okName, remoteName = Safe.pcall(function() return Safe.typeof(self) == "Instance" and self.Name end)
      isChatSend = okName and remoteName == "SayMessageRequest"
     end
-    if isChatSend and typeof(checkcaller) == "function" and checkcaller() then
+    if isChatSend and Safe.checkcaller and Safe.checkcaller() then
      local preview = tostring((...) ~= nil and (...) or ""):sub(1, 60)
      Console("warn", "Blocked forced chat message: \"" .. preview .. "\" [Hook: " .. method .. "]")
      LogBlock("Forced chat message blocked", method, "(chat)")
      return nil
     end
    elseif method == "ReadPixels" or method == "WritePixels" or method == "GetImage" or method == "ImageContent" then
-    local ok, className = pcall(function() return self.ClassName end)
+    local ok, className = Safe.pcall(function() return self.ClassName end)
     LogEvent("pixel-buffer-access", method .. " called on " .. (ok and tostring(className) or "instance"), "info")
    elseif method == "RequestAsync" then
     local options = ...
-    if typeof(options) == "table" then
+    if Safe.typeof(options) == "table" then
      CountHttpRequestSeen()
      local url = options.Url or options.url or ""
      if VyrnoxGuard.IsUserWhitelistedUrl(url) then
+      local leak, leakReason = VyrnoxGuard.WhitelistLeakCheck(url, options.Body or options.body, options.Headers or options.headers)
+      if leak then
+       Console("warn", leakReason .. " [Hook: RequestAsync] (whitelisted host, still blocked)")
+       LogBlock(leakReason, "RequestAsync", url)
+       return {Success = false, StatusCode = 403, Body = BLOCKED_JSON_BODY, Headers = {["Content-Type"] = "application/json"}}
+      end
       return oldnamecall(self, ...)
      end
      local body = options.Body or options.body or ""
@@ -4474,8 +4774,8 @@ spawn_func(function()
 
      local finalOptions = ApplyScrubbedOptions(options, scrubbedUrl, urlChanged, scrubbedBody, bodyChanged, scrubbedHeaders, headersChanged)
      local result = oldnamecall(self, finalOptions)
-     if ProtectFingerprint and typeof(result) == "table" and typeof(scrubbedUrl) == "string" then
-      local host = ExtractHost(FullyUrlDecode(scrubbedUrl)):lower()
+     if ProtectFingerprint and Safe.typeof(result) == "table" and Safe.typeof(scrubbedUrl) == "string" then
+      local host = Safe.lower(ExtractHost(FullyUrlDecode(scrubbedUrl)))
       if InspectResponseForGiveaways(host, result.Body, result.Headers) then
        Console("warn", "Blocked response, matched IP logger content blocklist [Hook: RequestAsync]")
        LogBlock("Matched IP logger content blocklist", "RequestAsync", scrubbedUrl)
@@ -4489,7 +4789,7 @@ spawn_func(function()
   end)
 
   raw.__newindex = cclosure(function(self, index, value)
-   if ProtectConsoleGui and typeof(index) == "string" and typeof(value) == "string" and (index == "Text" or index == "PlaceholderText" or index == "ContentText") then
+   if ProtectConsoleGui and Safe.typeof(index) == "string" and Safe.typeof(value) == "string" and (index == "Text" or index == "PlaceholderText" or index == "ContentText") then
     local bad, reason = ScanString(value)
     if bad then
      Console("warn", reason .. " [Blocked GUI text assignment]")
@@ -4499,32 +4799,146 @@ spawn_func(function()
    end
    return oldnewindex(self, index, value)
   end)
-  setreadonly(raw, true)
+  Safe.setreadonly(raw, true)
+  MetaHook.installed = { raw = raw, oldnamecall = oldnamecall, oldnewindex = oldnewindex }
 
+  local function SetMeta(field)
+   return function(v)
+    local r = Safe.getrawmetatable(game)
+    if r then
+     Safe.setreadonly(r, false)
+     r[field] = v
+     Safe.setreadonly(r, true)
+    end
+   end
+  end
   RegisterHookWatch("__namecall", function()
-   local r = getrawmetatable(game)
+   local r = Safe.getrawmetatable(game)
    return r and r.__namecall
-  end)
+  end, nil, { set = SetMeta("__namecall") })
+  RegisterHookWatch("__newindex", function()
+   local r = Safe.getrawmetatable(game)
+   return r and r.__newindex
+  end, nil, { set = SetMeta("__newindex") })
+ end
+end
+
+InstallMetatableHook()
+
+spawn_func(function()
+ wait_func()
+
+ if not UserSetMetatableManually then
+  local anti = AntiCheatPresent()
+  if anti and MetaHook.installed then
+   ProtectMetatable = false
+   local m = MetaHook.installed
+   pcall(function()
+    Safe.setreadonly(m.raw, false)
+    m.raw.__namecall = m.oldnamecall
+    m.raw.__newindex = m.oldnewindex
+    Safe.setreadonly(m.raw, true)
+   end)
+   for i = #HookWatchList, 1, -1 do
+    local lbl = HookWatchList[i].label
+    if lbl == "__namecall" or lbl == "__newindex" then table.remove(HookWatchList, i) end
+   end
+   MetaHook.installed = nil
+   Console("warn", "Metatable protection (__namecall/__newindex) toggled off: this game appears to have an anti-cheat/admin system that can detect hooked metamethods. HTTP requests made through executor functions are still protected.")
+   NotifyToggleChange()
+  elseif not anti and not ProtectMetatable then
+   ProtectMetatable = true
+   InstallMetatableHook()
+   NotifyToggleChange()
+  end
  end
 end)
 
 local WatchIntervalSeconds = 5
+
+local CANARY_URL = "http://127.0.0.1:1/vyrnox-canary"
+local function RunHttpCanary(fn)
+ if not ProtectCookies or Safe.typeof(fn) ~= "function" then return true end
+ if VyrnoxGuard.IsUserWhitelistedUrl(CANARY_URL) then return true end
+ Safe.Canary = true
+ local ok, res = Safe.pcall(fn, { Url = CANARY_URL, Method = "POST", Body = cookies })
+ Safe.Canary = false
+ return ok and Safe.typeof(res) == "table" and res.StatusCode == 403 and res.Body == BLOCKED_JSON_BODY
+end
+Safe.RunRestoreCanary = function(fn)
+ if Safe.typeof(fn) ~= "function" then return true end
+ local before = RestoreFunctionBlocked
+ Safe.Canary = true
+ Safe.pcall(fn, Safe.RestoreCanaryTarget)
+ Safe.Canary = false
+ local blocked = (RestoreFunctionBlocked == before + 1)
+ RestoreFunctionBlocked = before
+ return blocked
+end
+
+local MaxRepairsPerWindow = 4
+
+local function IsEntryIntact(entry)
+ local ok, current = pcall(entry.getCurrent)
+ local intact = ok and current == entry.baseline
+ if intact and entry.kind == "http" then
+  intact = RunHttpCanary(current)
+ elseif intact and entry.kind == "restore" then
+  intact = Safe.RunRestoreCanary(current)
+ end
+ return intact
+end
+
+local function RepairEntry(entry)
+ local repair = entry.repair
+ if not repair then return false end
+ local ok, current = pcall(entry.getCurrent)
+ if ok and current ~= entry.baseline and repair.set then
+  pcall(repair.set, entry.baseline)
+ end
+ if IsEntryIntact(entry) then return true end
+ if repair.rehook then
+  local ok2, cur2 = pcall(entry.getCurrent)
+  local target = (ok2 and Safe.typeof(cur2) == "function") and cur2 or entry.baseline
+  pcall(repair.rehook, target)
+ end
+ return IsEntryIntact(entry)
+end
+
+local function CheckEntry(entry)
+ if IsEntryIntact(entry) then
+  entry.tamperedWarned = false
+  entry.okStreak = entry.okStreak + 1
+  if entry.okStreak >= 12 then entry.repairs = 0 end
+  return
+ end
+ entry.okStreak = 0
+ local repaired = false
+ if entry.repairs < MaxRepairsPerWindow then
+  entry.repairs = entry.repairs + 1
+  repaired = RepairEntry(entry)
+ end
+ if repaired then
+  entry.tamperedWarned = false
+  Console("warn", "Hook tampering detected and repaired: \"" .. entry.label .. "\" was altered and Vyrnox Guard re-installed it. "
+   .. "Something in this session is trying to bypass protection.")
+  LogEvent("hook-repaired", entry.label .. " was altered and automatically re-installed")
+ elseif not entry.tamperedWarned then
+  entry.tamperedWarned = true
+  local why = (entry.repairs >= MaxRepairsPerWindow) and "it keeps being re-tampered after repeated repairs" or "it could not be repaired automatically"
+  Console("warn", "Hook tampering detected: \"" .. entry.label .. "\" not matching the state Vyrnox Guard installed (" .. why .. "), "
+   .. "protection for this hook may have been silently removed. "
+   .. "Treat this session as reduced protection.")
+  LogEvent("hook-tampered", entry.label .. " changed from its post-install baseline (" .. why .. ")")
+ end
+end
+
 if #HookWatchList > 0 then
  spawn_func(function()
   while true do
    wait_func(WatchIntervalSeconds)
    for _, entry in ipairs(HookWatchList) do
-    local ok, current = pcall(entry.getCurrent)
-    local intact = ok and current == entry.baseline
-    if intact then
-     entry.tamperedWarned = false
-    elseif not entry.tamperedWarned then
-     entry.tamperedWarned = true
-     Console("warn", "Hook tampering detected: \"" .. entry.label .. "\" not matching the state Vyrnox Guard installed, "
-      .. "protection for this hook may have been silently removed. "
-      .. "Treat this session as reduced protection.")
-     LogEvent("hook-tampered", entry.label .. " changed from its post-install baseline")
-    end
+    pcall(CheckEntry, entry)
    end
   end
  end)
@@ -4536,8 +4950,7 @@ function VyrnoxGuard.PrintHookStatus()
   return
  end
  for i, entry in ipairs(HookWatchList) do
-  local ok, current = pcall(entry.getCurrent)
-  local intact = ok and current == entry.baseline
+  local intact = IsEntryIntact(entry)
   Console("print", string.format("[%d] %s: %s", i, entry.label, intact and "GOOD" or "TAMPERED"))
  end
 end
