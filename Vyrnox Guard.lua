@@ -4826,7 +4826,7 @@ end
 InstallMetatableHook()
 
 spawn_func(function()
- wait_func()
+ wait_func(0.5)
 
  if not UserSetMetatableManually then
   local anti = AntiCheatPresent()
@@ -4920,15 +4920,12 @@ local function CheckEntry(entry)
  end
  if repaired then
   entry.tamperedWarned = false
-  Console("warn", "Hook tampering detected and repaired: \"" .. entry.label .. "\" was altered and Vyrnox Guard re-installed it. "
-   .. "Something in this session is trying to bypass protection.")
+  Console("warn", "Hook tampering detected and repaired: \"" .. entry.label .. "\" was altered and Vyrnox Guard re-installed it. Something in this session is trying to bypass protection.")
   LogEvent("hook-repaired", entry.label .. " was altered and automatically re-installed")
  elseif not entry.tamperedWarned then
   entry.tamperedWarned = true
   local why = (entry.repairs >= MaxRepairsPerWindow) and "it keeps being re-tampered after repeated repairs" or "it could not be repaired automatically"
-  Console("warn", "Hook tampering detected: \"" .. entry.label .. "\" not matching the state Vyrnox Guard installed (" .. why .. "), "
-   .. "protection for this hook may have been silently removed. "
-   .. "Treat this session as reduced protection.")
+  Console("warn", "Hook tampering detected: \"" .. entry.label .. "\" not matching the state Vyrnox Guard installed (" .. why .. "), protection for this hook may have been silently removed. Treat this session as reduced protection.")
   LogEvent("hook-tampered", entry.label .. " changed from its post-install baseline (" .. why .. ")")
  end
 end
