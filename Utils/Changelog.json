@@ -1,6 +1,21 @@
 {
  "versions": [
   {
+   "version": "v3.1",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["+", "Added Fling Players toggle"],
+      ["+", "Added Fling Rake toggle"],
+      ["+", "Added Sprint Always Enabled toggle"],
+      ["+", "Added Vision Hour Mod"],
+      ["-", "Removed Remove Malfunction; not possible to fix"]
+     ]
+    }
+   ]
+  },
+  {
    "version": "v3.0",
    "games": [
     {
