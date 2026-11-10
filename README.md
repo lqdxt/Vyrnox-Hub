@@ -2,7 +2,7 @@
 
 **A script hub that almost has no competitors yet.**
 
-Works in many executors, your favorite ones, and low score executors such as Xeno *v1.0.0* or Solara.
+Works in many executors, your favorite ones, and such executors: Xeno *v1.0.0* and Solara.
 
 ---
 
