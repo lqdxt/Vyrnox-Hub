@@ -1,5 +1,7 @@
 # Vyrnox Hub
 
+> Note: Vyrnox Guard is a separate thing from Vyrnox Hub
+
 Supported games:
 - The Rake REMASTERED
 - MONOCHROME
