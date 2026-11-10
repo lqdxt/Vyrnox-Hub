@@ -2,13 +2,38 @@
 
 **A script hub that almost has no competitors yet.**
 
-Works in many executors, your favorite ones, and such executors: Xeno *v1.0.0* and Solara.
-
----
-
 > This script requires a Key System, it isn't Keyless as a whole. Ignore those who say it is.
 
-**Key System details**
+Vyrnox Hub loadstring: `loadstring(game:HttpGet("https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/main/Loader.lua"))()`
+
+# Details
+
+**Executors supported**
+- Lynx
+- Volt
+- OpiumWare
+- Potassium
+- Seliware
+- Synapse Z
+- Velocity
+- Real
+- Volcano
+- Wave
+- Madium
+- Bunni
+- Athena
+- Madius
+- Isaeva
+- Lucid
+- Solara
+- Xeno (v1.0.0)
+- Delta
+- Codex
+- Arceus X
+- OpiumWareMac
+- MacSploit
+
+**Key System**
 - Validation: 24 hours
 - Checkpoints: 1
 - Tasks: 2-4
@@ -19,8 +44,6 @@ Works in many executors, your favorite ones, and such executors: Xeno *v1.0.0* a
 - The Rake REMASTERED
 - MONOCHROME
 - 3008
-
-Vyrnox Hub loadstring: `loadstring(game:HttpGet("https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/main/Loader.lua"))()`
 
 Here's all their features, so you know what to expect:
 
