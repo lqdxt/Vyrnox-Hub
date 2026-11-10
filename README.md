@@ -11,7 +11,7 @@ Works in many executors, your favorite ones, and such executors: Xeno *v1.0.0* a
 **Key System details**
 - Validation: 24 hours
 - Checkpoints: 1
-- Provider: Lootlabs
+- Integration: Lootlabs
 - Keyless days: Saturday
 
 **Games supported**
