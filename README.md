@@ -1,0 +1,304 @@
+# Vyrnox Hub
+
+Supported games:
+- The Rake REMASTERED
+- MONOCHROME
+- 3008
+
+Here's all their features, so you know what to expect:
+
+# 1. The Rake REMASTERED
+- Brightness
+- Fullbright
+- No Fog
+- Clock Time Value
+- Clock Time
+- Day Time
+- Keep Backpack Enabled
+- No Fall Animation
+- Enable Chat
+- Extended Prompts
+- No Line Of Sight
+- Instant Prompts
+- Timer
+- Power
+- Rake Target
+- Rake Health
+- Distance Travelled
+- Time Color
+- Power Color
+- Rake Target Color
+- Rake Health Color
+- Distance Color
+- Time
+- Rake HP
+- Speed Value
+- Speed
+- Speed Bypass
+- Bypass Method
+- Jump Height Value
+- Jump Height
+- Hip Height Value
+- Hip Height
+- Fly Speed
+- Fly
+- Max Slope Angle
+- Slope Angle
+- Freeze
+- Sit
+- Infinite Jump
+- Infinite Stamina
+- Infinite Night Vision
+- No Fall Damage
+- No Jump Cooldown
+- No Player Collisions
+- Noclip
+- Sprint Always Enabled
+- Sprint Speed Value
+- Sprint
+- Dash Speed
+- Dash
+- ESP Mode
+- ESP Text Size
+- Rainbow Colors
+- Rainbow Speed
+- Rake Color
+- Player Color
+- Scrap Color
+- Rusty Trap Color
+- Rake Trap Color
+- Flare Gun Color
+- Supply Drop Color
+- Places Color
+- Rake ESP
+- Show Hp
+- Show Distance
+- Show Highlights
+- Player ESP
+- Show Travelled
+- Show Inventory
+- Places ESP
+- Show Pallet Hp
+- Scrap ESP
+- Show Level
+- Show Points
+- Rusty Trap ESP
+- Rake Trap ESP
+- Flare Gun ESP
+- Supply Drop ESP
+- Show Items
+- No Camera Shake
+- No Jumpscare Snap
+- No Heartbeat
+- No Static
+- No Scare
+- No Blur
+- No Downed Color
+- Third Person
+- Enable Shiftlock
+- Crosshair
+- Field Of View Value
+- Field Of View Modes
+- Field Of View
+- Free Camera
+- Spectate
+- Camera Sensitivity
+- Camera Speed
+- Highlight Spots
+- Rake Pathfind
+- No Bobbing
+- Range
+- Stun Stick Hit Range
+- Hit Faster
+- Auto Stun Stick
+- Keep Item On Spawn
+- Item To Keep
+- Instantly Open Supply
+- Teleport Behind Rake
+- Teleport Distance
+- Hide Below Map
+- Disable Conveyors
+- Anti Shock
+- Anti Traps
+- Anti Void
+- Auto Collect Item
+- Select Item
+- Auto Supply Teleport
+- Hp Requirement
+- Auto Heal
+- Auto Fix Power
+- Auto Get Flare Gun
+- Auto Get Scraps
+- Auto Escape Trap
+- Auto Farm
+- Auto Farm Mode
+- Shield Studs Range
+- Rake Shield
+- Instant Kill Rake
+- Fling Rake (Kills You)
+- Fling Players
+- Control Modes
+- Throw Power
+- Control Objects
+- Blood Hour Notifier
+- Flare Gun Notifier
+- Upgraded Flashlight
+- Night Vision Goggles
+- Unlock Sixth Sense
+- Bring Scraps
+- Sell Scraps
+- Get Radio
+- Teleport To Last Died
+- Show Fps
+- Fps Mode
+- Play Cave Sounds
+- Disable Tree Crowns
+- Disable Materials
+- Close Trapdoor
+- Open Trapdoor
+- Knock Trapdoor
+- Switch Lights
+- Switch Radar
+- Switch Door
+- Switch Light
+- Knock Door
+- Get Flung
+- Instantly Free From Trap
+- Take Damage
+- Take Full Damage
+- Normal
+- Hurt
+- Injured
+- Crawl
+- Shop
+- Power Station
+- Safe House
+- Base Camp
+- Observation Tower
+- Jumpscare Scene
+- Flat Island
+- Outside Map
+- RakeWeather Mod
+- Rain Sound Volume
+- Vision Hour Mod
+
+# 2. MONOCHROME
+- Live Code Reader
+- Teleport To Nearest Key
+- Teleport To Spawn
+- Auto Interact
+- Auto Solve Keypad
+- Instant Interact
+- No Line of Sight
+- ESP Mode
+- ESP Text Size
+- Rainbow Colors
+- Rainbow Speed
+- Monster Color
+- Player Color
+- Key Color
+- Note Color
+- Panel Color
+- Screwdriver Color
+- Bar Color
+- Closet Color
+- Drawer Color
+- Locker Color
+- Elevator Color
+- Halloween Color
+- Player ESP
+- Monster ESP
+- Keys ESP
+- Code Note ESP
+- Control Panel ESP
+- Screwdriver ESP
+- Bar ESP
+- Closets ESP
+- Drawers ESP
+- Lockers ESP
+- Elevator ESP
+- Halloween ESP
+- Tracer Thickness
+- Tracers
+- Third Person Distance
+- Third Person
+- FOV Value
+- Field of View
+- Brightness
+- Fullbright
+- Remove VHS
+- Infinite Stamina
+- Speed Value
+- Speed Hack
+- Enable Jump
+- Fly Speed
+- Fly
+- Noclip
+- Shove
+- Night Vision
+- Radar
+- Auto Win Closet Peek
+- No Jumpscare
+- Auto Invite All
+- Auto Join Biggest Party
+- Find Biggest Server
+
+# 3. 3008
+- Throw Power
+- Throw
+- Delete Speed
+- Delete Range
+- Delete Object
+- Delete Object Aura
+- Interact Range
+- Interact
+- Instant Interact
+- Waypoint
+- Teleport To Waypoint
+- Teleport To Whistle
+- Player Whistle Target
+- Employee ESP
+- Player ESP
+- Items ESP
+- ESP Mode
+- Employee Color
+- Player Color
+- Items Color
+- No Fog
+- Brightness
+- Fullbright
+- Third Person
+- Scrolling Distance
+- Furniture Scroll
+- Speed Value
+- Speed Hack
+- Fly Speed
+- Fly
+- Jump Height
+- Jump Power Hack
+- Gravity Value
+- Gravity
+- Slide Speed
+- Slide
+- God Mode
+- Infinite Hunger
+- Infinite Energy
+- No Fall Damage
+- Noclip
+- Infinite Jump
+- Personal Watch
+- Death Waypoint
+- Octuple Waypoints
+- Auto Collect Range
+- Auto Collect
+- Instant Respawn
+- Auto Shove Employees
+- Free Placement
+- Anti AFK
+- Click Teleport
+- Teleport Back On Death
+- Collect Nearest Item
+- Item
+- Record
+- Builds
+- Auto Build (Beta)
