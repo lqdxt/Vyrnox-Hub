@@ -313,6 +313,6 @@ Here's all their features, so you know what to expect:
 - Builds
 - Auto Build (Beta)
 
-*ALL OF THE FEATURES ARE WORKING*
+*ALL OF THE FEATURES ARE WORKING. EACH WAS TESTED THOROUGHLY*
 
 Updates fast sometimes, **depends**.
