@@ -312,3 +312,5 @@ Here's all their features, so you know what to expect:
 - Auto Build (Beta)
 
 *ALL OF THE FEATURES ARE WORKING*
+
+Updates fast sometimes, **depends**.
