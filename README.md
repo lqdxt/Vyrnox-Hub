@@ -7,6 +7,8 @@ Supported games:
 - MONOCHROME
 - 3008
 
+**How to execute Vyrnox Hub:** Paste or loadstring() the Loader.lua file
+
 Here's all their features, so you know what to expect:
 
 # 1. The Rake REMASTERED
