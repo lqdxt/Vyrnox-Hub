@@ -6,7 +6,7 @@ Works in many executors, your favorite ones, and such executors: Xeno *v1.0.0* a
 
 ---
 
-> This script requires a Key System, it isn't Keyless. Ignore those who say it is.
+> This script requires a Key System, it isn't Keyless as a whole. Ignore those who say it is.
 
 **Key System details**
 - Validation: 24 hours
