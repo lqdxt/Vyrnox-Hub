@@ -4,38 +4,15 @@
 
 **A script hub that almost has no competitors yet.**
 
-Vyrnox Hub loadstring: `loadstring(game:HttpGet("https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/main/Loader.lua"))()`
+Works on 22+ executors, 95% supporting all features. Best to use in Vyrnox Hub:
+
+PC: Madium
+
+Mobile: Delta
+
+macOS: OpiumwareMac
 
 # Details
-
-> ! = barely working
-
-**Executors supported**
-- Lynx
-- Volt
-- OpiumWare
-- Potassium
-- Seliware
-- Synapse Z
-- Velocity
-- Real
-- Volcano
-- Wave
-- Madium
-- Bunni
-- Athena
-- Madius
-- Isaeva
-- Lucid
-- Solara
-- Xeno (v1.0.0) !
-- Delta
-- Codex
-- Arceus X
-- OpiumWareMac
-- MacSploit
-
-> 95% support all features
 
 **Key System**
 - Validation: 24 hours
@@ -48,6 +25,13 @@ Vyrnox Hub loadstring: `loadstring(game:HttpGet("https://raw.githubusercontent.c
 - The Rake REMASTERED
 - MONOCHROME
 - 3008
+
+---
+
+Vyrnox Hub loadstring:
+```lua
+loadstring(game:HttpGet("https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/main/Loader.lua"))()
+```
 
 Here's all their features, so you know what to expect:
 
@@ -226,6 +210,8 @@ Here's all their features, so you know what to expect:
 - Rain Sound Volume
 - Vision Hour Mod
 
+---
+
 # 2. MONOCHROME
 - Live Code Reader
 - Teleport To Nearest Key
@@ -287,6 +273,8 @@ Here's all their features, so you know what to expect:
 - Auto Join Biggest Party
 - Find Biggest Server
 
+---
+
 # 3. 3008
 - Throw Power
 - Throw
@@ -346,6 +334,8 @@ Here's all their features, so you know what to expect:
 - Record
 - Builds
 - Auto Build (Beta)
+
+---
 
 *90%+ OF THE FEATURES ARE WORKING. EACH WAS TESTED THOROUGHLY. BUT IT HEAVILY DEPENDS ON THE EXECUTOR*
 
