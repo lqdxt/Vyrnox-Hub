@@ -7,7 +7,7 @@ Supported games:
 - MONOCHROME
 - 3008
 
-**How to execute Vyrnox Hub:** Paste or loadstring() the Loader.lua file
+**How to execute Vyrnox Hub:** Paste `loadstring(game:HttpGet("https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/main/Loader.lua"))()`
 
 Here's all their features, so you know what to expect:
 
@@ -306,3 +306,5 @@ Here's all their features, so you know what to expect:
 - Record
 - Builds
 - Auto Build (Beta)
+
+*ALL OF THE FEATURES ARE WORKING*
