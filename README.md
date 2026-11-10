@@ -1,5 +1,7 @@
 # Vyrnox Hub
 
+**A script hub that almost has no competitors yet.**
+
 > Note: Vyrnox Guard is a separate thing from Vyrnox Hub
 
 Supported games:
@@ -7,7 +9,7 @@ Supported games:
 - MONOCHROME
 - 3008
 
-**How to execute Vyrnox Hub:** Paste `loadstring(game:HttpGet("https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/main/Loader.lua"))()`
+How to execute Vyrnox Hub: Paste `loadstring(game:HttpGet("https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/main/Loader.lua"))()`
 
 Here's all their features, so you know what to expect:
 
