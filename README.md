@@ -2,9 +2,9 @@
 
 **A script hub that almost has no competitors yet.**
 
-> Note: Vyrnox Guard is a separate thing from Vyrnox Hub
+Works in many executors, such as Xeno *(v1.0.0 only)* or Solara.
 
-Supported games:
+Games supported:
 - The Rake REMASTERED
 - MONOCHROME
 - 3008
