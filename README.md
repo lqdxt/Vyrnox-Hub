@@ -6,7 +6,7 @@
 
 Works on 22+ executors, 95% supporting all features. Best to use in Vyrnox Hub:
 
-PC: Madium
+PC: Madium | Volt
 
 Mobile: Delta
 
@@ -337,6 +337,10 @@ Here's all their features, so you know what to expect:
 
 ---
 
-*90%+ OF THE FEATURES ARE WORKING. EACH WAS TESTED THOROUGHLY. BUT IT HEAVILY DEPENDS ON THE EXECUTOR*
+*90%+ OF THE FEATURES ARE WORKING. EACH WAS TESTED THOROUGHLY. BUT IT HEAVILY DEPENDS ON THE EXECUTOR.*
 
-Updates fast sometimes, **depends**.
+---
+
+Updates fast, sometimes.
+
+Uses Obsidian UI forked
