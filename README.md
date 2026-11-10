@@ -28,7 +28,7 @@ macOS: OpiumwareMac
 
 ---
 
-Vyrnox Hub loadstring:
+Vyrnox Hub's only loader:
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/main/Loader.lua"))()
 ```
