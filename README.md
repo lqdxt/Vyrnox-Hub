@@ -2,7 +2,9 @@
 
 **A script hub that almost has no competitors yet.**
 
-Works in many executors, such as Xeno *(v1.0.0 only)* or Solara.
+Works in many executors, your favorite ones, and low score executors such as Xeno *v1.0.0* or Solara.
+
+---
 
 > This script requires a Key System, it isn't Keyless. Ignore those who say it is.
 
