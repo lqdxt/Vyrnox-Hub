@@ -8,7 +8,13 @@ Works in many executors, your favorite ones, and such executors: Xeno *v1.0.0* a
 
 > This script requires a Key System, it isn't Keyless. Ignore those who say it is.
 
-Games supported:
+**Key System details**
+- Validation: 24 hours
+- Checkpoints: 1
+- Provider: Lootlabs
+- Keyless days: Saturday
+
+**Games supported**
 - The Rake REMASTERED
 - MONOCHROME
 - 3008
