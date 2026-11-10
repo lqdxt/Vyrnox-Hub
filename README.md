@@ -4,6 +4,8 @@
 
 Works in many executors, such as Xeno *(v1.0.0 only)* or Solara.
 
+> This script requires a Key System, it isn't Keyless. Ignore those who say it is.
+
 Games supported:
 - The Rake REMASTERED
 - MONOCHROME
