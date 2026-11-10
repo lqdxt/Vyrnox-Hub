@@ -343,4 +343,4 @@ Here's all their features, so you know what to expect:
 
 Updates fast, sometimes.
 
-Uses Obsidian UI forked
+Uses Obsidian UI forked as it fixes some mobile issues and adds some things
