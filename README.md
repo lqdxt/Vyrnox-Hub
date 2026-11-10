@@ -1,8 +1,8 @@
 # Vyrnox Hub
 
-**A script hub that almost has no competitors yet.**
+> This script hub requires a Key System, it isn't Keyless as a whole. Ignore those who say it is.
 
-> This script requires a Key System, it isn't Keyless as a whole. Ignore those who say it is.
+**A script hub that almost has no competitors yet.**
 
 Vyrnox Hub loadstring: `loadstring(game:HttpGet("https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/main/Loader.lua"))()`
 
