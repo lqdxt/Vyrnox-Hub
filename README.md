@@ -9,7 +9,7 @@ Games supported:
 - MONOCHROME
 - 3008
 
-How to execute Vyrnox Hub: Paste `loadstring(game:HttpGet("https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/main/Loader.lua"))()`
+Vyrnox Hub loadstring: `loadstring(game:HttpGet("https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/main/Loader.lua"))()`
 
 Here's all their features, so you know what to expect:
 
