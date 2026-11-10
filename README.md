@@ -319,6 +319,6 @@ Here's all their features, so you know what to expect:
 - Builds
 - Auto Build (Beta)
 
-*90%+ OF THE FEATURES ARE WORKING. EACH WAS TESTED THOROUGHLY*
+*90%+ OF THE FEATURES ARE WORKING. EACH WAS TESTED THOROUGHLY. BUT IT HEAVILY DEPENDS ON THE EXECUTOR*
 
 Updates fast sometimes, **depends**.
