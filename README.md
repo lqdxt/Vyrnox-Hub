@@ -8,6 +8,8 @@ Vyrnox Hub loadstring: `loadstring(game:HttpGet("https://raw.githubusercontent.c
 
 # Details
 
+> ! = barely working
+
 **Executors supported**
 - Lynx
 - Volt
@@ -26,12 +28,14 @@ Vyrnox Hub loadstring: `loadstring(game:HttpGet("https://raw.githubusercontent.c
 - Isaeva
 - Lucid
 - Solara
-- Xeno (v1.0.0)
+- Xeno (v1.0.0) !
 - Delta
 - Codex
 - Arceus X
 - OpiumWareMac
 - MacSploit
+
+> 95% support all features
 
 **Key System**
 - Validation: 24 hours
