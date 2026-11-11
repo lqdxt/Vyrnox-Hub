@@ -12,6 +12,8 @@ Mobile: Delta
 
 macOS: OpiumwareMac
 
+Also supports Xeno and Solara, but barely.
+
 # Details
 
 **Key System**
