@@ -21,6 +21,8 @@ macOS: OpiumwareMac
 - Integration: Lootlabs
 - Keyless days: Saturday
 
+> Warning: be cautious of aggressive pop ups, phishing attempts, or misleading "Update Required" browser notifications. Don't put me at fault if something happens.
+
 **Games supported**
 - The Rake REMASTERED
 - MONOCHROME
