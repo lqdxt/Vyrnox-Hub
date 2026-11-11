@@ -11,6 +11,18 @@
  that said, you still shouldn't execute untrusted + obfuscated scripts blindly
 ]]
 
+game:GetService("StarterGui"):SetCore("SendNotification", {
+ Title = "Warning",
+ Text = "Vyrnox Guard moved. Please use the lastest one as this will get removed soon.",
+ Duration = 20
+})
+
+pcall(function()
+ if setclipboard then
+  setclipboard("loadstring(game:HttpGet(\"https://raw.githubusercontent.com/lqdxt/Vyrnox-Guard/main/Loader.lua\"))()")
+ end
+end)
+
 local env = (type(getgenv) == "function" and getgenv()) or (type(getfenv) == "function" and getfenv()) or _G
 local cf = env.clonefunction or env.clone_function or env.clonefunc or clonefunction or clone_function
 local clone_func = function(fn) if type(fn) ~= "function" then return fn end if cf then local s, r = pcall(cf, fn) if s and type(r) == "function" then return r end end return fn end
