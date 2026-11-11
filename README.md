@@ -6,11 +6,15 @@
 
 Works on 22+ executors, 95% supporting all features. Best to use in Vyrnox Hub:
 
-PC: Madium | Volt
+PC:
+- Madium
+- Volt
 
-Mobile: Delta
+Mobile:
+- Delta
 
-macOS: OpiumwareMac
+macOS:
+- OpiumwareMac
 
 Also supports Xeno v1.0.0 and Solara, but barely.
 
@@ -22,8 +26,6 @@ Also supports Xeno v1.0.0 and Solara, but barely.
 - Tasks: 2-4
 - Integration: Lootlabs
 - Keyless days: Saturday
-
-> Warning: when doing the key system, be cautious of aggressive pop ups, phishing attempts, or misleading "Update Required" browser notifications. Don't put me at fault if something happens.
 
 **Games supported**
 - The Rake REMASTERED
