@@ -1,7 +1,7 @@
 {
  "versions": [
   {
-   "version": "v3.1",
+   "version": "v3.1.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -16,7 +16,7 @@
    ]
   },
   {
-   "version": "v3.0",
+   "version": "v3.0.0",
    "games": [
     {
      "name": "Global",
@@ -34,7 +34,7 @@
    ]
   },
   {
-   "version": "v2.9",
+   "version": "v2.9.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -82,7 +82,7 @@
    ]
   },
   {
-   "version": "v2.8",
+   "version": "v2.8.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -108,7 +108,7 @@
    ]
   },
   {
-   "version": "v2.7",
+   "version": "v2.7.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -120,7 +120,7 @@
    ]
   },
   {
-   "version": "v2.6",
+   "version": "v2.6.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -148,7 +148,7 @@
    ]
   },
   {
-   "version": "v2.5",
+   "version": "v2.5.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -160,7 +160,7 @@
    ]
   },
   {
-   "version": "v2.4",
+   "version": "v2.4.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -172,7 +172,7 @@
    ]
   },
   {
-   "version": "v2.3",
+   "version": "v2.3.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -186,7 +186,7 @@
    ]
   },
   {
-   "version": "v2.2",
+   "version": "v2.2.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -200,7 +200,7 @@
    ]
   },
   {
-   "version": "v2.1",
+   "version": "v2.1.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -216,7 +216,7 @@
    ]
   },
   {
-   "version": "v2.0",
+   "version": "v2.0.0",
    "games": [
     {
      "name": "Global",
@@ -241,7 +241,7 @@
    ]
   },
   {
-   "version": "v1.9",
+   "version": "v1.9.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -252,7 +252,7 @@
    ]
   },
   {
-   "version": "v1.8",
+   "version": "v1.8.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -267,7 +267,7 @@
    ]
   },
   {
-   "version": "v1.7",
+   "version": "v1.7.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -283,7 +283,7 @@
    ]
   },
   {
-   "version": "v1.6",
+   "version": "v1.6.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -296,7 +296,7 @@
    ]
   },
   {
-   "version": "v1.5",
+   "version": "v1.5.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -310,7 +310,7 @@
    ]
   },
   {
-   "version": "v1.4",
+   "version": "v1.4.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -324,7 +324,7 @@
    ]
   },
   {
-   "version": "v1.3",
+   "version": "v1.3.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -335,7 +335,7 @@
    ]
   },
   {
-   "version": "v1.2",
+   "version": "v1.2.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -346,7 +346,7 @@
    ]
   },
   {
-   "version": "v1.1",
+   "version": "v1.1.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
@@ -357,7 +357,7 @@
    ]
   },
   {
-   "version": "v1.0",
+   "version": "v1.0.0",
    "games": [
     {
      "name": "The Rake REMASTERED",
