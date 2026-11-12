@@ -1,6 +1,17 @@
 {
  "versions": [
   {
+   "version": "v3.1.1",
+   "games": [
+    {
+     "name": "The Rake REMASTERED",
+     "entries": [
+      ["!", "Fixed Stun Stick Hit Range sometimes not actually expanding the intended hitbox"]
+     ]
+    }
+   ]
+  },
+  {
    "version": "v3.1.0",
    "games": [
     {
