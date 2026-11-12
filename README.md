@@ -1,7 +1,5 @@
 # Vyrnox Hub
 
-> This script hub requires a Key System, it isn't Keyless as a whole. Ignore those who say it is.
-
 **A script hub that almost has no competitors yet.**
 
 Works on 22+ executors, 95% supporting all features. Best to use in Vyrnox Hub:
