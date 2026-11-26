@@ -14,7 +14,7 @@ Mobile:
 macOS:
 - OpiumwareMac
 
-Also supports Xeno v1.0.0 and Solara, but barely.
+Also supports Xeno v1.0.0 and Solara, but depends on the game.
 
 # Details
 
