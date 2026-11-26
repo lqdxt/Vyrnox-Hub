@@ -25,7 +25,7 @@ Also supports Xeno v1.0.0 and Solara, but depends on the game.
 - Integration: Lootlabs
 - Keyless days: Saturday
 
-**Games supported
+**Games supported**
 - The Rake REMASTERED
 - MONOCHROME
 - 3008
