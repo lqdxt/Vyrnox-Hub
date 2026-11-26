@@ -37,7 +37,7 @@ Vyrnox Hub's only loader:
 loadstring(game:HttpGet("https://raw.githubusercontent.com/lqdxt/Vyrnox-Hub/main/Loader.lua"))()
 ```
 
-### Features (not sub toggles)
+### Feature count (not sub toggles)
 - The Rake REMASTERED: 120+
 - MONOCHROME: 30+
 - 3008: 30+
